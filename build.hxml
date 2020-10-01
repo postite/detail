@@ -1,0 +1,7 @@
+-cp src
+-D analyzer-optimize
+-lib tink_web
+-lib hxnodejs
+-D no-deprecation-warnings
+-main server.app.Server
+--js www/app.js
