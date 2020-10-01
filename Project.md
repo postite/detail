@@ -1,9 +1,6 @@
 # DETAIL ( eye )
-
 ### le site boutique des yeux peints à l'huile
-
 ## evolutif 
- 
 ### base
  
  - liste eyes
@@ -11,7 +8,6 @@
 
 
 ### evolution
-
 - processus
 - liste d'attente  
 

@@ -8,6 +8,7 @@ import tink.web.routing.*;
 import coconut.ui.*;
 import coconut.Ui.hxx;
 import client.app.CocoLay;
+import tink.HtmlString;
 
 class Server{
 
@@ -31,17 +32,25 @@ class Root {
     }
     @:get("/")
     @:produces("text/html")
-    public function index(){
-        trace( "ipo");
-        //return "pop";
-       // return new OutgoingResponse("")
-        return ( "</br>" + untyped RenderResult.raw(Renderer.render('<CocoLay />')).plain );
-       // return ( (Renderer.render('<CocoLay />').getHtml());
-        //return {msg:"index"};
+    public function index():CocoRender{
+       return Renderer.render('<CocoLay />');    
     }
     @:get("/tarif")
     public function tarif(){
         trace( "tarif");
         return "23€";
     }
+}
+
+abstract CocoRender (String) from HtmlString to String{
+
+    function new(s:String){
+        this= s;
+    }
+    @:from 
+    public static function fromRenderResult(r:HtmlString):CocoRender{
+        return untyped RenderResult.raw(Renderer.render('<CocoLay />')).plain;
+    }
+
+    
 }
