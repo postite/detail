@@ -1,0 +1,6 @@
+(:public static function render():)
+    <div class="hop">
+        hello 
+    </div>
+(:end:)
+

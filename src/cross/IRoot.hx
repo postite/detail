@@ -14,8 +14,8 @@ typedef Eye={
     date:Date,
     description:String,
     image:String
-
 }
+
 interface IRoot
 {
     function home():Html;

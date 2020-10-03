@@ -1,0 +1,10 @@
+crossServer.hxml
+
+-D coconut
+-lib cix
+-D cix-output=./www/cix.css
+-lib coconut.html
+-lib coconut.ui
+--debug
+-main server.app.Server
+--js www/static.js

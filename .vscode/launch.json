@@ -2,11 +2,21 @@
 	"version": "0.2.0",
 	"configurations": [
 	{
-		"preLaunchTask": "build server",
+		"preLaunchTask": "server",
 		"type": "node",
 		"request": "launch",
 		"name": "Launch Program",
 		"program": "${workspaceFolder}/www/app.js",
+		"skipFiles": [
+			"<node_internals>/**"
+		]
+	},
+	{
+		"preLaunchTask": "static",
+		"type": "node",
+		"request": "launch",
+		"name": "Launch Static",
+		"program": "${workspaceFolder}/www/static.js",
 		"skipFiles": [
 			"<node_internals>/**"
 		]

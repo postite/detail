@@ -1,0 +1,13 @@
+-cp src
+-D analyzer-optimize
+
+-lib postite_core
+-lib compiletime
+-lib tink_web
+-lib poscope
+-lib postite_core
+
+-D client 
+-D no-deprecation-warnings
+-main client.app.Client
+--js www/statics/client.js

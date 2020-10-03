@@ -1,6 +1,0 @@
--cp src
--D analyzer-optimize
--lib coconut.html
--D no-deprecation-warnings
--main client.app.Vue
---js www/vue.js

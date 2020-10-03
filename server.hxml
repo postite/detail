@@ -1,0 +1,3 @@
+crossServer.hxml
+-main server.app.Server
+--js www/app.js

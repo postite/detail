@@ -1,11 +1,8 @@
 -cp src
+-lib postite_core
 -D analyzer-optimize
 -lib tink_web
-
--lib coconut.html
-
-
+-lib poscope
+-lib tink_http_middleware
 -lib hxnodejs
 -D no-deprecation-warnings
--main server.app.Server
---js www/app.js

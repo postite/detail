@@ -4,23 +4,23 @@
 		{
 			"type": "haxe",
 			"args": "active configuration",
-			"group": "build",
+			"group": {
+				"kind": "build",
+				"isDefault": true
+			},
 			"label": "haxe: active configuration"
 		},
 		{
 			"type": "hxml",
-			"file": "build.hxml",
+			"file": "server.hxml",
 			"problemMatcher": [
 				"$haxe-absolute",
 				"$haxe",
 				"$haxe-error",
 				"$haxe-trace"
 			],
-			"group": {
-				"kind": "build",
-				"isDefault": true
-			},
-			"label": "build server"
+			"group": "build",
+			"label": "server"
 		},
 		{
 			"type": "hxml",
@@ -33,6 +33,18 @@
 			],
 			"group": "build",
 			"label": "client"
+		},
+		{
+			"type": "hxml",
+			"file": "static.hxml",
+			"problemMatcher": [
+				"$haxe-absolute",
+				"$haxe",
+				"$haxe-error",
+				"$haxe-trace"
+			],
+			"group": "build",
+			"label": "static"
 		}
 	]
 }

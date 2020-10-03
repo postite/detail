@@ -102,23 +102,14 @@ DateTools.__format = function(d,f) {
 DateTools.format = function(d,f) {
 	return DateTools.__format(d,f);
 };
-var Debug = function() { };
-$hxClasses["Debug"] = Debug;
-Debug.__name__ = "Debug";
-Debug.Log = function(val,msg,pos) {
-	if(msg == null) {
-		msg = "";
-	}
-	haxe_Log.trace("" + pos.className + " " + pos.lineNumber + " " + msg,{ fileName : "Debug.hx", lineNumber : 4, className : "Debug", methodName : "Log", customParams : [val]});
-	return val;
-};
 var EReg = function(r,opt) {
 	this.r = new RegExp(r,opt.split("u").join(""));
 };
 $hxClasses["EReg"] = EReg;
 EReg.__name__ = "EReg";
 EReg.prototype = {
-	match: function(s) {
+	r: null
+	,match: function(s) {
 		if(this.r.global) {
 			this.r.lastIndex = 0;
 		}
@@ -138,6 +129,14 @@ EReg.prototype = {
 var HxOverrides = function() { };
 $hxClasses["HxOverrides"] = HxOverrides;
 HxOverrides.__name__ = "HxOverrides";
+HxOverrides.dateStr = function(date) {
+	var m = date.getMonth() + 1;
+	var d = date.getDate();
+	var h = date.getHours();
+	var mi = date.getMinutes();
+	var s = date.getSeconds();
+	return date.getFullYear() + "-" + (m < 10 ? "0" + m : "" + m) + "-" + (d < 10 ? "0" + d : "" + d) + " " + (h < 10 ? "0" + h : "" + h) + ":" + (mi < 10 ? "0" + mi : "" + mi) + ":" + (s < 10 ? "0" + s : "" + s);
+};
 HxOverrides.cca = function(s,index) {
 	var x = s.charCodeAt(index);
 	if(x != x) {
@@ -173,8 +172,11 @@ $hxClasses["Lambda"] = Lambda;
 Lambda.__name__ = "Lambda";
 Lambda.has = function(it,elt) {
 	var x = $getIterator(it);
-	while(x.hasNext()) if(x.next() == elt) {
-		return true;
+	while(x.hasNext()) {
+		var x1 = x.next();
+		if(x1 == elt) {
+			return true;
+		}
 	}
 	return false;
 };
@@ -204,35 +206,6 @@ Reflect.fields = function(o) {
 Reflect.isFunction = function(f) {
 	if(typeof(f) == "function") {
 		return !(f.__name__ || f.__ename__);
-	} else {
-		return false;
-	}
-};
-Reflect.compare = function(a,b) {
-	if(a == b) {
-		return 0;
-	} else if(a > b) {
-		return 1;
-	} else {
-		return -1;
-	}
-};
-Reflect.compareMethods = function(f1,f2) {
-	if(f1 == f2) {
-		return true;
-	}
-	if(!Reflect.isFunction(f1) || !Reflect.isFunction(f2)) {
-		return false;
-	}
-	if(f1.scope == f2.scope && f1.method == f2.method) {
-		return f1.method != null;
-	} else {
-		return false;
-	}
-};
-Reflect.isEnumValue = function(v) {
-	if(v != null) {
-		return v.__enum__ != null;
 	} else {
 		return false;
 	}
@@ -297,11 +270,58 @@ var StringBuf = function() {
 $hxClasses["StringBuf"] = StringBuf;
 StringBuf.__name__ = "StringBuf";
 StringBuf.prototype = {
-	__class__: StringBuf
+	b: null
+	,__class__: StringBuf
 };
 var StringTools = function() { };
 $hxClasses["StringTools"] = StringTools;
 StringTools.__name__ = "StringTools";
+StringTools.htmlEscape = function(s,quotes) {
+	var buf_b = "";
+	var _g_offset = 0;
+	var _g_s = s;
+	while(_g_offset < _g_s.length) {
+		var s = _g_s;
+		var index = _g_offset++;
+		var c = s.charCodeAt(index);
+		if(c >= 55296 && c <= 56319) {
+			c = c - 55232 << 10 | s.charCodeAt(index + 1) & 1023;
+		}
+		var c1 = c;
+		if(c1 >= 65536) {
+			++_g_offset;
+		}
+		var code = c1;
+		switch(code) {
+		case 34:
+			if(quotes) {
+				buf_b += "&quot;";
+			} else {
+				buf_b += String.fromCodePoint(code);
+			}
+			break;
+		case 38:
+			buf_b += "&amp;";
+			break;
+		case 39:
+			if(quotes) {
+				buf_b += "&#039;";
+			} else {
+				buf_b += String.fromCodePoint(code);
+			}
+			break;
+		case 60:
+			buf_b += "&lt;";
+			break;
+		case 62:
+			buf_b += "&gt;";
+			break;
+		default:
+			buf_b += String.fromCodePoint(code);
+		}
+	}
+	return buf_b;
+};
 StringTools.startsWith = function(s,start) {
 	if(s.length >= start.length) {
 		return s.lastIndexOf(start,0) == 0;
@@ -416,7 +436,8 @@ $hxClasses["_Sys.FileOutput"] = _$Sys_FileOutput;
 _$Sys_FileOutput.__name__ = "_Sys.FileOutput";
 _$Sys_FileOutput.__super__ = haxe_io_Output;
 _$Sys_FileOutput.prototype = $extend(haxe_io_Output.prototype,{
-	writeByte: function(c) {
+	fd: null
+	,writeByte: function(c) {
 		js_node_Fs.writeSync(this.fd,String.fromCodePoint(c));
 	}
 	,writeBytes: function(s,pos,len) {
@@ -471,7 +492,8 @@ $hxClasses["_Sys.FileInput"] = _$Sys_FileInput;
 _$Sys_FileInput.__name__ = "_Sys.FileInput";
 _$Sys_FileInput.__super__ = haxe_io_Input;
 _$Sys_FileInput.prototype = $extend(haxe_io_Input.prototype,{
-	readByte: function() {
+	fd: null
+	,readByte: function() {
 		var buf = js_node_buffer_Buffer.alloc(1);
 		try {
 			js_node_Fs.readSync(this.fd,buf,0,1,null);
@@ -518,6 +540,13 @@ var ValueType = $hxEnums["ValueType"] = { __ename__ : "ValueType", __constructs_
 var Type = function() { };
 $hxClasses["Type"] = Type;
 Type.__name__ = "Type";
+Type.getInstanceFields = function(c) {
+	var a = [];
+	for(var i in c.prototype) a.push(i);
+	HxOverrides.remove(a,"__class__");
+	HxOverrides.remove(a,"__properties__");
+	return a;
+};
 Type.typeof = function(v) {
 	switch(typeof(v)) {
 	case "boolean":
@@ -649,19 +678,25 @@ asys_FileSystem.deleteDirectory = function(path) {
 			var _g = 0;
 			var _g1 = js_node_Fs.readdirSync(path);
 			while(_g < _g1.length) {
-				var curPath = path + "/" + _g1[_g++];
+				var file = _g1[_g];
+				++_g;
+				var curPath = path + "/" + file;
 				if(sys_FileSystem.isDirectory(curPath)) {
 					if(sys_FileSystem.exists(curPath)) {
 						var _g2 = 0;
 						var _g3 = js_node_Fs.readdirSync(curPath);
 						while(_g2 < _g3.length) {
-							var curPath1 = curPath + "/" + _g3[_g2++];
+							var file1 = _g3[_g2];
+							++_g2;
+							var curPath1 = curPath + "/" + file1;
 							if(sys_FileSystem.isDirectory(curPath1)) {
 								if(sys_FileSystem.exists(curPath1)) {
 									var _g4 = 0;
 									var _g5 = js_node_Fs.readdirSync(curPath1);
 									while(_g4 < _g5.length) {
-										var curPath2 = curPath1 + "/" + _g5[_g4++];
+										var file2 = _g5[_g4];
+										++_g4;
+										var curPath2 = curPath1 + "/" + file2;
 										if(sys_FileSystem.isDirectory(curPath2)) {
 											sys_FileSystem.deleteDirectory(curPath2);
 										} else {
@@ -805,7 +840,12 @@ $hxClasses["asys.io.FileInput"] = asys_io_FileInput;
 asys_io_FileInput.__name__ = "asys.io.FileInput";
 asys_io_FileInput.__super__ = haxe_io_Input;
 asys_io_FileInput.prototype = $extend(haxe_io_Input.prototype,{
-	readByte: function() {
+	bufferSize: null
+	,bufferPos: null
+	,fd: null
+	,position: null
+	,buffer: null
+	,readByte: function() {
 		if(this.bufferPos == this.bufferSize) {
 			this.bufferPos = 0;
 		}
@@ -857,7 +897,10 @@ $hxClasses["asys.io.FileOutput"] = asys_io_FileOutput;
 asys_io_FileOutput.__name__ = "asys.io.FileOutput";
 asys_io_FileOutput.__super__ = haxe_io_Output;
 asys_io_FileOutput.prototype = $extend(haxe_io_Output.prototype,{
-	writeByte: function(c) {
+	fd: null
+	,position: null
+	,buffer: null
+	,writeByte: function(c) {
 		this.buffer[0] = c;
 		js_node_Fs.writeSync(this.fd,this.buffer,0,1,this.position++);
 	}
@@ -892,32 +935,763 @@ var asys_io_FileSeek = $hxEnums["asys.io.FileSeek"] = { __ename__ : "asys.io.Fil
 	,SeekCur: {_hx_index:1,__enum__:"asys.io.FileSeek",toString:$estr}
 	,SeekEnd: {_hx_index:2,__enum__:"asys.io.FileSeek",toString:$estr}
 };
+var coconut_Ui = function() { };
+$hxClasses["coconut.Ui"] = coconut_Ui;
+coconut_Ui.__name__ = "coconut.Ui";
+var coconut_html_Html = function() { };
+$hxClasses["coconut.html.Html"] = coconut_html_Html;
+coconut_html_Html.__name__ = "coconut.html.Html";
+coconut_html_Html.raw = function(hxxMeta,attr) {
+	return new coconut_html__$Html_HtmlFragment(attr);
+};
+coconut_html_Html.wbr = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("wbr",attr);
+};
+coconut_html_Html.video = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("video",attr,children);
+};
+coconut_html_Html.ul = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("ul",attr,children);
+};
+coconut_html_Html.track = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("track",attr);
+};
+coconut_html_Html.tr = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("tr",attr,children);
+};
+coconut_html_Html.title = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("title",attr,children);
+};
+coconut_html_Html.thead = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("thead",attr,children);
+};
+coconut_html_Html.th = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("th",attr,children);
+};
+coconut_html_Html.tfoot = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("tfoot",attr,children);
+};
+coconut_html_Html.textarea = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("textarea",attr,children);
+};
+coconut_html_Html.td = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("td",attr,children);
+};
+coconut_html_Html.tbody = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("tbody",attr,children);
+};
+coconut_html_Html.table = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("table",attr,children);
+};
+coconut_html_Html.svg = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("svg",attr,children);
+};
+coconut_html_Html.summary = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("summary",attr,children);
+};
+coconut_html_Html.style = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("style",attr,children);
+};
+coconut_html_Html.strong = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("strong",attr,children);
+};
+coconut_html_Html.span = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("span",attr,children);
+};
+coconut_html_Html.source = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("source",attr);
+};
+coconut_html_Html.small = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("small",attr,children);
+};
+coconut_html_Html.select = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("select",attr,children);
+};
+coconut_html_Html.section = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("section",attr,children);
+};
+coconut_html_Html.script = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("script",attr,children);
+};
+coconut_html_Html.rect = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("rect",attr,children);
+};
+coconut_html_Html.pre = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("pre",attr,children);
+};
+coconut_html_Html.polygon = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("polygon",attr,children);
+};
+coconut_html_Html.picture = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("picture",attr,children);
+};
+coconut_html_Html.path = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("path",attr,children);
+};
+coconut_html_Html.param = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("param",attr);
+};
+coconut_html_Html.p = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("p",attr,children);
+};
+coconut_html_Html.option = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("option",attr,children);
+};
+coconut_html_Html.ol = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("ol",attr,children);
+};
+coconut_html_Html.object = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("object",attr,children);
+};
+coconut_html_Html.nav = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("nav",attr,children);
+};
+coconut_html_Html.meta = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("meta",attr);
+};
+coconut_html_Html.menu = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("menu",attr,children);
+};
+coconut_html_Html.main = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("main",attr,children);
+};
+coconut_html_Html.link = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("link",attr);
+};
+coconut_html_Html.li = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("li",attr,children);
+};
+coconut_html_Html.legend = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("legend",attr,children);
+};
+coconut_html_Html.label = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("label",attr,children);
+};
+coconut_html_Html.ins = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("ins",attr,children);
+};
+coconut_html_Html.input = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("input",attr);
+};
+coconut_html_Html.img = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("img",attr);
+};
+coconut_html_Html.iframe = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("iframe",attr,children);
+};
+coconut_html_Html.i = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("i",attr,children);
+};
+coconut_html_Html.html = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("html",attr,children);
+};
+coconut_html_Html.hr = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("hr",attr);
+};
+coconut_html_Html.header = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("header",attr,children);
+};
+coconut_html_Html.head = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("head",attr,children);
+};
+coconut_html_Html.h6 = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("h6",attr,children);
+};
+coconut_html_Html.h5 = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("h5",attr,children);
+};
+coconut_html_Html.h4 = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("h4",attr,children);
+};
+coconut_html_Html.h3 = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("h3",attr,children);
+};
+coconut_html_Html.h2 = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("h2",attr,children);
+};
+coconut_html_Html.h1 = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("h1",attr,children);
+};
+coconut_html_Html.form = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("form",attr,children);
+};
+coconut_html_Html.footer = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("footer",attr,children);
+};
+coconut_html_Html.fieldset = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("fieldset",attr,children);
+};
+coconut_html_Html.embed = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("embed",attr);
+};
+coconut_html_Html.em = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("em",attr,children);
+};
+coconut_html_Html.ellipse = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("ellipse",attr,children);
+};
+coconut_html_Html.dt = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("dt",attr,children);
+};
+coconut_html_Html.dl = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("dl",attr,children);
+};
+coconut_html_Html.div = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("div",attr,children);
+};
+coconut_html_Html.details = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("details",attr,children);
+};
+coconut_html_Html.del = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("del",attr,children);
+};
+coconut_html_Html.dd = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("dd",attr,children);
+};
+coconut_html_Html.code = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("code",attr,children);
+};
+coconut_html_Html.circle = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("circle",attr,children);
+};
+coconut_html_Html.canvas = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("canvas",attr,children);
+};
+coconut_html_Html.button = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("button",attr,children);
+};
+coconut_html_Html.br = function(hxxMeta,attr) {
+	return new coconut_html__$Html_Tag("br",attr);
+};
+coconut_html_Html.body = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("body",attr,children);
+};
+coconut_html_Html.blockquote = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("blockquote",attr,children);
+};
+coconut_html_Html.b = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("b",attr,children);
+};
+coconut_html_Html.audio = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("audio",attr,children);
+};
+coconut_html_Html.aside = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("aside",attr,children);
+};
+coconut_html_Html.article = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("article",attr,children);
+};
+coconut_html_Html.a = function(hxxMeta,attr,children) {
+	return new coconut_html__$Html_Tag("a",attr,children);
+};
+var coconut_html_RenderResultObject = function() { };
+$hxClasses["coconut.html.RenderResultObject"] = coconut_html_RenderResultObject;
+coconut_html_RenderResultObject.__name__ = "coconut.html.RenderResultObject";
+coconut_html_RenderResultObject.__isInterface__ = true;
+coconut_html_RenderResultObject.prototype = {
+	renderInto: null
+	,__class__: coconut_html_RenderResultObject
+};
+var coconut_html__$Html_HtmlFragment = function(attr) {
+	this.attr = attr;
+};
+$hxClasses["coconut.html._Html.HtmlFragment"] = coconut_html__$Html_HtmlFragment;
+coconut_html__$Html_HtmlFragment.__name__ = "coconut.html._Html.HtmlFragment";
+coconut_html__$Html_HtmlFragment.__interfaces__ = [coconut_html_RenderResultObject];
+coconut_html__$Html_HtmlFragment.prototype = {
+	attr: null
+	,renderInto: function(buf) {
+		var _g = this.attr.tag;
+		var tag = _g == null ? "div" : _g;
+		buf.out += "<" + tag;
+		var _g = this.attr.className;
+		var s = _g == null ? ">" : " class=\"" + StringTools.htmlEscape(_g) + "\">";
+		buf.out += s;
+		buf.out += this.attr.content + ("</" + tag + ">");
+	}
+	,__class__: coconut_html__$Html_HtmlFragment
+};
+var coconut_html_AttrValue = {};
+coconut_html_AttrValue.toString = function(this1) {
+	var _g = Type.typeof(this1);
+	switch(_g._hx_index) {
+	case 1:
+		return "" + this1;
+	case 2:
+		return "" + this1;
+	case 3:
+		if(this1) {
+			return "";
+		} else {
+			return null;
+		}
+		break;
+	case 6:
+		if(_g.c == String) {
+			var s = this1;
+			var this1 = s == null ? "" : tink_HtmlString.htmlEscape(s);
+			return this1;
+		} else {
+			return null;
+		}
+		break;
+	default:
+		return null;
+	}
+};
+var coconut_html__$Html_Tag = function(tag,attr,children) {
+	this.tag = tag;
+	this.attr = attr;
+	this.children = children;
+};
+$hxClasses["coconut.html._Html.Tag"] = coconut_html__$Html_Tag;
+coconut_html__$Html_Tag.__name__ = "coconut.html._Html.Tag";
+coconut_html__$Html_Tag.__interfaces__ = [coconut_html_RenderResultObject];
+coconut_html__$Html_Tag.prototype = {
+	tag: null
+	,attr: null
+	,children: null
+	,renderInto: function(buf) {
+		buf.out += "<" + this.tag;
+		if(this.attr != null) {
+			var access = this.attr;
+			var _g_keys = Reflect.fields(access);
+			var _g_index = 0;
+			while(_g_index < _g_keys.length) {
+				var key = _g_keys[_g_index++];
+				var _g = { value : access[key], key : key};
+				var key1 = _g.key;
+				var val = _g.value;
+				switch(key1) {
+				case "className":
+					key1 = "class";
+					break;
+				case "htmlFor":
+					key1 = "for";
+					break;
+				case "styleCss":
+					key1 = "style";
+					break;
+				default:
+					key1 = key1.toLowerCase();
+				}
+				var this1 = val;
+				var _g1;
+				var _g2 = Type.typeof(this1);
+				switch(_g2._hx_index) {
+				case 1:
+					_g1 = "" + this1;
+					break;
+				case 2:
+					_g1 = "" + this1;
+					break;
+				case 3:
+					_g1 = this1 ? "" : null;
+					break;
+				case 6:
+					if(_g2.c == String) {
+						var s = this1;
+						var this2 = s == null ? "" : tink_HtmlString.htmlEscape(s);
+						_g1 = this2;
+					} else {
+						_g1 = null;
+					}
+					break;
+				default:
+					_g1 = null;
+				}
+				if(_g1 != null) {
+					if(_g1 == "") {
+						buf.out += " " + key1;
+					} else {
+						var v = _g1;
+						buf.out += " " + key1 + "=\"" + v + "\"";
+					}
+				}
+			}
+		}
+		if(this.children == null) {
+			buf.out += "/>";
+		} else {
+			buf.out += ">";
+			var _g = 0;
+			var _g1 = this.children;
+			while(_g < (_g1 == null ? 0 : _g1.length)) {
+				var c = _g1 == null ? null : _g1[_g];
+				++_g;
+				if(c != null) {
+					c.renderInto(buf);
+				}
+			}
+			buf.out += "</" + this.tag + ">";
+		}
+	}
+	,__class__: coconut_html__$Html_Tag
+};
+var coconut_html_RenderResult = {};
+coconut_html_RenderResult._new = function(n) {
+	return n;
+};
+coconut_html_RenderResult.renderInto = function(this1,buf) {
+	if(this1 != null) {
+		this1.renderInto(buf);
+	}
+};
+coconut_html_RenderResult.getHtml = function(this1) {
+	var s;
+	if(this1 == null) {
+		s = "";
+	} else {
+		var this2 = new tink_htmlstring_RawBuffer();
+		var buf = this2;
+		this1.renderInto(buf);
+		s = buf.out;
+	}
+	var this1 = s;
+	return this1;
+};
+coconut_html_RenderResult.raw = function(s) {
+	return new coconut_html__$RenderResult_Plain(s);
+};
+coconut_html_RenderResult.ofText = function(s) {
+	var this1 = s == null ? "" : tink_HtmlString.htmlEscape(s);
+	return coconut_html_RenderResult.raw(this1);
+};
+coconut_html_RenderResult.ofInt = function(i) {
+	var s = i == null ? "null" : "" + i;
+	var this1 = s == null ? "" : tink_HtmlString.htmlEscape(s);
+	return coconut_html_RenderResult.raw(this1);
+};
+coconut_html_RenderResult.fragment = function(attr,children) {
+	return new coconut_html__$RenderResult_Fragment(children);
+};
+var coconut_html__$RenderResult_Plain = function(plain) {
+	this.plain = plain;
+};
+$hxClasses["coconut.html._RenderResult.Plain"] = coconut_html__$RenderResult_Plain;
+coconut_html__$RenderResult_Plain.__name__ = "coconut.html._RenderResult.Plain";
+coconut_html__$RenderResult_Plain.__interfaces__ = [coconut_html_RenderResultObject];
+coconut_html__$RenderResult_Plain.prototype = {
+	plain: null
+	,renderInto: function(buffer) {
+		buffer.out += this.plain;
+	}
+	,__class__: coconut_html__$RenderResult_Plain
+};
+var coconut_html__$RenderResult_Fragment = function(parts) {
+	this.parts = parts;
+};
+$hxClasses["coconut.html._RenderResult.Fragment"] = coconut_html__$RenderResult_Fragment;
+coconut_html__$RenderResult_Fragment.__name__ = "coconut.html._RenderResult.Fragment";
+coconut_html__$RenderResult_Fragment.__interfaces__ = [coconut_html_RenderResultObject];
+coconut_html__$RenderResult_Fragment.prototype = {
+	parts: null
+	,renderInto: function(buffer) {
+		var _g = 0;
+		var _g1 = this.parts;
+		while(_g < (_g1 == null ? 0 : _g1.length)) {
+			var p = _g1 == null ? null : _g1[_g];
+			++_g;
+			if(p != null) {
+				p.renderInto(buffer);
+			}
+		}
+	}
+	,__class__: coconut_html__$RenderResult_Fragment
+};
+var coconut_html_Renderer = function() { };
+$hxClasses["coconut.html.Renderer"] = coconut_html_Renderer;
+coconut_html_Renderer.__name__ = "coconut.html.Renderer";
+coconut_html_Renderer.updateAll = function() {
+};
+var coconut_html_ViewBase = function(o,_,_1,_2) {
+	this.o = o;
+};
+$hxClasses["coconut.html.ViewBase"] = coconut_html_ViewBase;
+coconut_html_ViewBase.__name__ = "coconut.html.ViewBase";
+coconut_html_ViewBase.__interfaces__ = [coconut_html_RenderResultObject];
+coconut_html_ViewBase.prototype = {
+	o: null
+	,renderInto: function(buffer) {
+		var this1 = tink_state_Observable.get_value(this.o);
+		if(this1 != null) {
+			this1.renderInto(buffer);
+		}
+	}
+	,__class__: coconut_html_ViewBase
+};
+var coconut_html_View = function(render,shouldUpdate,track,beforeRerender,rendered) {
+	this.__au = [];
+	this.__bc = [];
+	this.__bu = [];
+	var this1 = new tink_state__$State_SimpleState(0,null,null);
+	this._coco_revision = this1;
+	this.viewId = coconut_html_View.idCounter++;
+	var _gthis = this;
+	var mounted;
+	if(rendered != null) {
+		var _g = rendered;
+		var a1 = true;
+		mounted = function() {
+			_g(a1);
+		};
+	} else {
+		mounted = null;
+	}
+	var updated;
+	if(rendered != null) {
+		var _g1 = rendered;
+		var a11 = false;
+		updated = function() {
+			_g1(a11);
+		};
+	} else {
+		updated = null;
+	}
+	var firstTime = true;
+	var last = null;
+	var hasBeforeRerender = beforeRerender != null;
+	var hasUpdated = updated != null;
+	var lastRev = tink_state_State.get_value(this._coco_revision);
+	var renderView = function() {
+		var curRev = tink_state_State.get_value(_gthis._coco_revision);
+		if(track != null) {
+			track();
+		}
+		if(firstTime) {
+			firstTime = false;
+		} else {
+			if(curRev == lastRev && shouldUpdate != null && !shouldUpdate()) {
+				return last;
+			}
+			var hasCallbacks = _gthis.__bc.length > 0;
+			if(hasBeforeRerender || hasCallbacks) {
+				tink_state_Observable.untracked(function() {
+					if(hasBeforeRerender) {
+						beforeRerender();
+					}
+					if(hasCallbacks) {
+						var _g = 0;
+						var _g1 = _gthis.__bc.splice(0,_gthis.__bc.length);
+						while(_g < _g1.length) {
+							var c = _g1[_g];
+							++_g;
+							tink_core_Callback.invoke(c,false);
+						}
+					}
+				});
+			}
+		}
+		lastRev = curRev;
+		last = render();
+		return last;
+	};
+	var this1 = { f : renderView};
+	coconut_html_ViewBase.call(this,tink_state_Observable.auto(this1),mounted,function() {
+		var hasCallbacks = _gthis.__au.length > 0;
+		if(hasUpdated || hasCallbacks) {
+			tink_state_Observable.untracked(function() {
+				if(hasUpdated) {
+					updated();
+				}
+				if(hasCallbacks) {
+					var _g = 0;
+					var _g1 = _gthis.__au.splice(0,_gthis.__au.length);
+					while(_g < _g1.length) {
+						var c = _g1[_g];
+						++_g;
+						tink_core_Callback.invoke(c,null);
+					}
+				}
+			});
+		}
+	},function() {
+		last = null;
+		firstTime = true;
+		_gthis.__beforeUnmount();
+	});
+};
+$hxClasses["coconut.html.View"] = coconut_html_View;
+coconut_html_View.__name__ = "coconut.html.View";
+coconut_html_View.__super__ = coconut_html_ViewBase;
+coconut_html_View.prototype = $extend(coconut_html_ViewBase.prototype,{
+	viewId: null
+	,_coco_revision: null
+	,__bu: null
+	,__beforeUnmount: function() {
+		var _g = 0;
+		var _g1 = this.__bu.splice(0,this.__bu.length);
+		while(_g < _g1.length) {
+			var c = _g1[_g];
+			++_g;
+			if(c != null) {
+				c.cancel();
+			}
+		}
+		var _g = 0;
+		var _g1 = this.__bc.splice(0,this.__bu.length);
+		while(_g < _g1.length) {
+			var c = _g1[_g];
+			++_g;
+			tink_core_Callback.invoke(c,true);
+		}
+	}
+	,__bc: null
+	,__au: null
+	,forceUpdate: function(callback) {
+		this._coco_revision.set(tink_state_State.get_value(this._coco_revision) + 1);
+		if(callback != null) {
+			this.__au.push(callback);
+		}
+	}
+	,__class__: coconut_html_View
+});
+var coconut_ui_ChildrenOf = {};
+coconut_ui_ChildrenOf.get_length = function(this1) {
+	if(this1 == null) {
+		return 0;
+	} else {
+		return this1.length;
+	}
+};
+coconut_ui_ChildrenOf.get = function(this1,index) {
+	if(this1 == null) {
+		return null;
+	} else {
+		return this1[index];
+	}
+};
+coconut_ui_ChildrenOf.ofSingle = function(r) {
+	return [r];
+};
+coconut_ui_ChildrenOf.concat = function(this1,that) {
+	if(this1 == null) {
+		return that;
+	} else {
+		return this1.concat(that);
+	}
+};
+coconut_ui_ChildrenOf.prepend = function(this1,r) {
+	if(this1 == null) {
+		if(r == null) {
+			return null;
+		} else {
+			return coconut_ui_ChildrenOf.ofSingle(r);
+		}
+	} else if(r == null) {
+		return this1;
+	} else {
+		return [r].concat(this1);
+	}
+};
+coconut_ui_ChildrenOf.append = function(this1,r) {
+	if(this1 == null) {
+		if(r == null) {
+			return null;
+		} else {
+			return coconut_ui_ChildrenOf.ofSingle(r);
+		}
+	} else if(r == null) {
+		return this1;
+	} else {
+		return this1.concat([r]);
+	}
+};
 var poscope_wire_ICommand = function() { };
 $hxClasses["poscope.wire.ICommand"] = poscope_wire_ICommand;
 poscope_wire_ICommand.__name__ = "poscope.wire.ICommand";
 poscope_wire_ICommand.__isInterface__ = true;
-var command_Command1 = function(r) {
-	haxe_Log.trace(r,{ fileName : "src/command/Command1.hx", lineNumber : 10, className : "command.Command1", methodName : "new"});
-	this.remote = r;
-};
+var command_Command1 = function() { };
 $hxClasses["command.Command1"] = command_Command1;
 command_Command1.__name__ = "command.Command1";
 command_Command1.__interfaces__ = [poscope_wire_ICommand];
 command_Command1.prototype = {
 	execute: function(data) {
-		haxe_Log.trace("hello command",{ fileName : "src/command/Command1.hx", lineNumber : 14, className : "command.Command1", methodName : "execute"});
-		return tink_core_Promise.noise(tink_core_Promise.next(this.remote.test("david"),function(s) {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(Debug.Log(s,null,{ fileName : "src/command/Command1.hx", lineNumber : 16, className : "command.Command1", methodName : "execute"}))));
-		}));
+		console.log("src/command/Command1.hx:8:","hello command");
+		return tink_core_Promise.NOISE;
 	}
 	,__class__: command_Command1
 };
-var cross_ICrossRoot = function() { };
-$hxClasses["cross.ICrossRoot"] = cross_ICrossRoot;
-cross_ICrossRoot.__name__ = "cross.ICrossRoot";
-cross_ICrossRoot.__isInterface__ = true;
-cross_ICrossRoot.prototype = {
-	__class__: cross_ICrossRoot
+var flat_CocoComp = function(hxxMeta,__coco_data_) {
+	this.__initAttributes(__coco_data_);
+	coconut_html_View.call(this,$bind(this,this.render),null,null,null,null);
+};
+$hxClasses["flat.CocoComp"] = flat_CocoComp;
+flat_CocoComp.__name__ = "flat.CocoComp";
+flat_CocoComp.__super__ = coconut_html_View;
+flat_CocoComp.prototype = $extend(coconut_html_View.prototype,{
+	render: function() {
+		var children = [coconut_html_RenderResult.raw(tink_HtmlString.htmlEscape("pipo"))];
+		return new coconut_html__$Html_Tag("div",{ onclick : null},children);
+	}
+	,toString: function() {
+		return "CocoComp" + "#" + this.viewId;
+	}
+	,__initAttributes: function(attributes) {
+	}
+	,__class__: flat_CocoComp
+});
+var flat_SubComp = function(hxxMeta,__coco_data_) {
+	this.className = tink_domspec_ClassName.ofArray([]);
+	this.__initAttributes(__coco_data_);
+	coconut_html_View.call(this,$bind(this,this.render),null,null,null,null);
+};
+$hxClasses["flat.SubComp"] = flat_SubComp;
+flat_SubComp.__name__ = "flat.SubComp";
+flat_SubComp.__super__ = coconut_html_View;
+flat_SubComp.prototype = $extend(coconut_html_View.prototype,{
+	className: null
+	,render: function() {
+		var children = [coconut_html_RenderResult.raw(tink_HtmlString.htmlEscape("erre"))];
+		return new coconut_html__$Html_Tag("div",{ },children);
+	}
+	,toString: function() {
+		return "SubComp" + "#" + this.viewId;
+	}
+	,__initAttributes: function(attributes) {
+	}
+	,__class__: flat_SubComp
+});
+var flat_CocoFlat = function() {
+};
+$hxClasses["flat.CocoFlat"] = flat_CocoFlat;
+flat_CocoFlat.__name__ = "flat.CocoFlat";
+flat_CocoFlat.prototype = {
+	index: function() {
+		console.log("src/flat/CocoFlat.hx:17:","index");
+		return { hip : "hop"};
+	}
+	,coco: function() {
+		console.log("src/flat/CocoFlat.hx:24:","flat");
+		var this1 = new flat_CocoComp({ },{ });
+		var s;
+		if(this1 == null) {
+			s = "";
+		} else {
+			var this2 = new tink_htmlstring_RawBuffer();
+			var buf = this2;
+			this1.renderInto(buf);
+			s = buf.out;
+		}
+		var this1 = s;
+		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(flat_CocoRender.fromRenderResult(this1))));
+	}
+	,compile: function() {
+		return tink_core_Promise.next(tink_core_Promise.inSequence([new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(this.index())))]),function(e) {
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success({ msg : "compile"})));
+		});
+	}
+	,__class__: flat_CocoFlat
+};
+var flat_CocoRender = {};
+flat_CocoRender._new = function(s) {
+	console.log("src/flat/CocoTools.hx:20:","new");
+	return s;
+};
+flat_CocoRender.fromRenderResult = function(r) {
+	console.log("src/flat/CocoTools.hx:26:","ppp");
+	var o = coconut_html_RenderResult.raw(r);
+	return o.plain;
 };
 var haxe_StackItem = $hxEnums["haxe.StackItem"] = { __ename__ : "haxe.StackItem", __constructs__ : ["CFunction","Module","FilePos","Method","LocalFunction"]
 	,CFunction: {_hx_index:0,__enum__:"haxe.StackItem",toString:$estr}
@@ -931,7 +1705,11 @@ $hxClasses["haxe.IMap"] = haxe_IMap;
 haxe_IMap.__name__ = "haxe.IMap";
 haxe_IMap.__isInterface__ = true;
 haxe_IMap.prototype = {
-	__class__: haxe_IMap
+	get: null
+	,exists: null
+	,keys: null
+	,iterator: null
+	,__class__: haxe_IMap
 };
 var haxe_Exception = function(message,previous,native) {
 	Error.call(this,message);
@@ -962,7 +1740,10 @@ haxe_Exception.thrown = function(value) {
 };
 haxe_Exception.__super__ = Error;
 haxe_Exception.prototype = $extend(Error.prototype,{
-	unwrap: function() {
+	__skipStack: null
+	,__nativeException: null
+	,__previousException: null
+	,unwrap: function() {
 		return this.__nativeException;
 	}
 	,get_native: function() {
@@ -970,28 +1751,6 @@ haxe_Exception.prototype = $extend(Error.prototype,{
 	}
 	,__class__: haxe_Exception
 });
-var haxe_Log = function() { };
-$hxClasses["haxe.Log"] = haxe_Log;
-haxe_Log.__name__ = "haxe.Log";
-haxe_Log.formatOutput = function(v,infos) {
-	var str = Std.string(v);
-	if(infos == null) {
-		return str;
-	}
-	var pstr = infos.fileName + ":" + infos.lineNumber;
-	if(infos.customParams != null) {
-		var _g = 0;
-		var _g1 = infos.customParams;
-		while(_g < _g1.length) str += ", " + Std.string(_g1[_g++]);
-	}
-	return pstr + ": " + str;
-};
-haxe_Log.trace = function(v,infos) {
-	var str = haxe_Log.formatOutput(v,infos);
-	if(typeof(console) != "undefined" && console.log != null) {
-		console.log(str);
-	}
-};
 var haxe_Resource = function() { };
 $hxClasses["haxe.Resource"] = haxe_Resource;
 haxe_Resource.__name__ = "haxe.Resource";
@@ -1005,7 +1764,8 @@ haxe_Resource.getString = function(name) {
 			if(x.str != null) {
 				return x.str;
 			}
-			return haxe_crypto_Base64.decode(x.data).toString();
+			var b = haxe_crypto_Base64.decode(x.data);
+			return b.toString();
 		}
 	}
 	return null;
@@ -1026,7 +1786,13 @@ haxe_Serializer.run = function(v) {
 	return s.toString();
 };
 haxe_Serializer.prototype = {
-	toString: function() {
+	buf: null
+	,cache: null
+	,shash: null
+	,scount: null
+	,useCache: null
+	,useEnumIndex: null
+	,toString: function() {
 		return this.buf.b;
 	}
 	,serializeString: function(s) {
@@ -1130,8 +1896,9 @@ haxe_Serializer.prototype = {
 			case Array:
 				var ucount = 0;
 				this.buf.b += "a";
+				var l = v["length"];
 				var _g1 = 0;
-				var _g2 = v["length"];
+				var _g2 = l;
 				while(_g1 < _g2) {
 					var i = _g1++;
 					if(v[i] == null) {
@@ -1160,8 +1927,9 @@ haxe_Serializer.prototype = {
 				this.buf.b += "h";
 				break;
 			case Date:
+				var d = v;
 				this.buf.b += "v";
-				this.buf.b += Std.string(v.getTime());
+				this.buf.b += Std.string(d.getTime());
 				break;
 			case haxe_ds_IntMap:
 				this.buf.b += "q";
@@ -1177,11 +1945,13 @@ haxe_Serializer.prototype = {
 				break;
 			case haxe_ds_List:
 				this.buf.b += "l";
-				var _g_head = v.h;
+				var v1 = v;
+				var _g_head = v1.h;
 				while(_g_head != null) {
 					var val = _g_head.item;
 					_g_head = _g_head.next;
-					this.serialize(val);
+					var i = val;
+					this.serialize(i);
 				}
 				this.buf.b += "h";
 				break;
@@ -1219,7 +1989,8 @@ haxe_Serializer.prototype = {
 				var max = v1.length - 2;
 				var b64 = haxe_Serializer.BASE64_CODES;
 				if(b64 == null) {
-					b64 = new Array(haxe_Serializer.BASE64.length);
+					var this1 = new Array(haxe_Serializer.BASE64.length);
+					b64 = this1;
 					var _g1 = 0;
 					var _g2 = haxe_Serializer.BASE64.length;
 					while(_g1 < _g2) {
@@ -1292,7 +2063,11 @@ haxe_Serializer.prototype = {
 			var params = Type.enumParameters(v);
 			this.buf.b += Std.string(params.length);
 			var _g = 0;
-			while(_g < params.length) this.serialize(params[_g++]);
+			while(_g < params.length) {
+				var p = params[_g];
+				++_g;
+				this.serialize(p);
+			}
 			if(this.useCache) {
 				this.cache.push(v);
 			}
@@ -1320,7 +2095,8 @@ haxe_Timer.delay = function(f,time_ms) {
 	return t;
 };
 haxe_Timer.prototype = {
-	stop: function() {
+	id: null
+	,stop: function() {
 		if(this.id == null) {
 			return;
 		}
@@ -1339,7 +2115,8 @@ $hxClasses["haxe.ValueException"] = haxe_ValueException;
 haxe_ValueException.__name__ = "haxe.ValueException";
 haxe_ValueException.__super__ = haxe_Exception;
 haxe_ValueException.prototype = $extend(haxe_Exception.prototype,{
-	unwrap: function() {
+	value: null
+	,unwrap: function() {
 		return this.value;
 	}
 	,__class__: haxe_ValueException
@@ -1399,7 +2176,9 @@ haxe_io_Bytes.ofData = function(b) {
 	return new haxe_io_Bytes(b);
 };
 haxe_io_Bytes.prototype = {
-	blit: function(pos,src,srcpos,len) {
+	length: null
+	,b: null
+	,blit: function(pos,src,srcpos,len) {
 		if(pos < 0 || srcpos < 0 || len < 0 || pos + len > this.length || srcpos + len > src.length) {
 			throw haxe_Exception.thrown(haxe_io_Error.OutsideBounds);
 		}
@@ -1439,10 +2218,13 @@ haxe_io_Bytes.prototype = {
 					var code = (c & 63) << 6 | b[i++] & 127;
 					s += String.fromCodePoint(code);
 				} else if(c < 240) {
-					var code1 = (c & 31) << 12 | (b[i++] & 127) << 6 | b[i++] & 127;
+					var c2 = b[i++];
+					var code1 = (c & 31) << 12 | (c2 & 127) << 6 | b[i++] & 127;
 					s += String.fromCodePoint(code1);
 				} else {
-					var u = (c & 15) << 18 | (b[i++] & 127) << 12 | (b[i++] & 127) << 6 | b[i++] & 127;
+					var c21 = b[i++];
+					var c3 = b[i++];
+					var u = (c & 15) << 18 | (c21 & 127) << 12 | (c3 & 127) << 6 | b[i++] & 127;
 					s += String.fromCodePoint(u);
 				}
 			}
@@ -1465,11 +2247,15 @@ haxe_io_Bytes.prototype = {
 		var str = "0123456789abcdef";
 		var _g = 0;
 		var _g1 = str.length;
-		while(_g < _g1) chars.push(HxOverrides.cca(str,_g++));
+		while(_g < _g1) {
+			var i = _g++;
+			chars.push(HxOverrides.cca(str,i));
+		}
 		var _g = 0;
 		var _g1 = this.length;
 		while(_g < _g1) {
-			var c = this.b[_g++];
+			var i = _g++;
+			var c = this.b[i];
 			s_b += String.fromCodePoint(chars[c >> 4]);
 			s_b += String.fromCodePoint(chars[c & 15]);
 		}
@@ -1524,7 +2310,10 @@ var haxe_crypto_BaseCode = function(base) {
 $hxClasses["haxe.crypto.BaseCode"] = haxe_crypto_BaseCode;
 haxe_crypto_BaseCode.__name__ = "haxe.crypto.BaseCode";
 haxe_crypto_BaseCode.prototype = {
-	encodeBytes: function(b) {
+	base: null
+	,nbits: null
+	,tbl: null
+	,encodeBytes: function(b) {
 		var nbits = this.nbits;
 		var base = this.base;
 		var size = b.length * 8 / nbits | 0;
@@ -1551,7 +2340,10 @@ haxe_crypto_BaseCode.prototype = {
 	,initTable: function() {
 		var tbl = [];
 		var _g = 0;
-		while(_g < 256) tbl[_g++] = -1;
+		while(_g < 256) {
+			var i = _g++;
+			tbl[i] = -1;
+		}
 		var _g = 0;
 		var _g1 = this.base.length;
 		while(_g < _g1) {
@@ -1589,194 +2381,10 @@ haxe_crypto_BaseCode.prototype = {
 	}
 	,__class__: haxe_crypto_BaseCode
 };
-var haxe_ds_BalancedTree = function() {
-};
-$hxClasses["haxe.ds.BalancedTree"] = haxe_ds_BalancedTree;
-haxe_ds_BalancedTree.__name__ = "haxe.ds.BalancedTree";
-haxe_ds_BalancedTree.__interfaces__ = [haxe_IMap];
-haxe_ds_BalancedTree.iteratorLoop = function(node,acc) {
-	while(true) {
-		if(node != null) {
-			haxe_ds_BalancedTree.iteratorLoop(node.left,acc);
-			acc.push(node.value);
-			node = node.right;
-			continue;
-		}
-		return;
-	}
-};
-haxe_ds_BalancedTree.prototype = {
-	set: function(key,value) {
-		this.root = this.setLoop(key,value,this.root);
-	}
-	,get: function(key) {
-		var node = this.root;
-		while(node != null) {
-			var c = this.compare(key,node.key);
-			if(c == 0) {
-				return node.value;
-			}
-			if(c < 0) {
-				node = node.left;
-			} else {
-				node = node.right;
-			}
-		}
-		return null;
-	}
-	,exists: function(key) {
-		var node = this.root;
-		while(node != null) {
-			var c = this.compare(key,node.key);
-			if(c == 0) {
-				return true;
-			} else if(c < 0) {
-				node = node.left;
-			} else {
-				node = node.right;
-			}
-		}
-		return false;
-	}
-	,iterator: function() {
-		var ret = [];
-		haxe_ds_BalancedTree.iteratorLoop(this.root,ret);
-		return new haxe_iterators_ArrayIterator(ret);
-	}
-	,keys: function() {
-		var ret = [];
-		this.keysLoop(this.root,ret);
-		return new haxe_iterators_ArrayIterator(ret);
-	}
-	,setLoop: function(k,v,node) {
-		if(node == null) {
-			return new haxe_ds_TreeNode(null,k,v,null);
-		}
-		var c = this.compare(k,node.key);
-		if(c == 0) {
-			return new haxe_ds_TreeNode(node.left,k,v,node.right,node == null ? 0 : node._height);
-		} else if(c < 0) {
-			return this.balance(this.setLoop(k,v,node.left),node.key,node.value,node.right);
-		} else {
-			var nr = this.setLoop(k,v,node.right);
-			return this.balance(node.left,node.key,node.value,nr);
-		}
-	}
-	,keysLoop: function(node,acc) {
-		if(node != null) {
-			this.keysLoop(node.left,acc);
-			acc.push(node.key);
-			this.keysLoop(node.right,acc);
-		}
-	}
-	,balance: function(l,k,v,r) {
-		var hl = l == null ? 0 : l._height;
-		var hr = r == null ? 0 : r._height;
-		if(hl > hr + 2) {
-			var _this = l.left;
-			var _this1 = l.right;
-			if((_this == null ? 0 : _this._height) >= (_this1 == null ? 0 : _this1._height)) {
-				return new haxe_ds_TreeNode(l.left,l.key,l.value,new haxe_ds_TreeNode(l.right,k,v,r));
-			} else {
-				return new haxe_ds_TreeNode(new haxe_ds_TreeNode(l.left,l.key,l.value,l.right.left),l.right.key,l.right.value,new haxe_ds_TreeNode(l.right.right,k,v,r));
-			}
-		} else if(hr > hl + 2) {
-			var _this = r.right;
-			var _this1 = r.left;
-			if((_this == null ? 0 : _this._height) > (_this1 == null ? 0 : _this1._height)) {
-				return new haxe_ds_TreeNode(new haxe_ds_TreeNode(l,k,v,r.left),r.key,r.value,r.right);
-			} else {
-				return new haxe_ds_TreeNode(new haxe_ds_TreeNode(l,k,v,r.left.left),r.left.key,r.left.value,new haxe_ds_TreeNode(r.left.right,r.key,r.value,r.right));
-			}
-		} else {
-			return new haxe_ds_TreeNode(l,k,v,r,(hl > hr ? hl : hr) + 1);
-		}
-	}
-	,compare: function(k1,k2) {
-		return Reflect.compare(k1,k2);
-	}
-	,__class__: haxe_ds_BalancedTree
-};
-var haxe_ds_TreeNode = function(l,k,v,r,h) {
-	if(h == null) {
-		h = -1;
-	}
-	this.left = l;
-	this.key = k;
-	this.value = v;
-	this.right = r;
-	if(h == -1) {
-		var tmp;
-		var _this = this.left;
-		var _this1 = this.right;
-		if((_this == null ? 0 : _this._height) > (_this1 == null ? 0 : _this1._height)) {
-			var _this = this.left;
-			tmp = _this == null ? 0 : _this._height;
-		} else {
-			var _this = this.right;
-			tmp = _this == null ? 0 : _this._height;
-		}
-		this._height = tmp + 1;
-	} else {
-		this._height = h;
-	}
-};
-$hxClasses["haxe.ds.TreeNode"] = haxe_ds_TreeNode;
-haxe_ds_TreeNode.__name__ = "haxe.ds.TreeNode";
-haxe_ds_TreeNode.prototype = {
-	__class__: haxe_ds_TreeNode
-};
 var haxe_ds_Either = $hxEnums["haxe.ds.Either"] = { __ename__ : "haxe.ds.Either", __constructs__ : ["Left","Right"]
 	,Left: ($_=function(v) { return {_hx_index:0,v:v,__enum__:"haxe.ds.Either",toString:$estr}; },$_.__params__ = ["v"],$_)
 	,Right: ($_=function(v) { return {_hx_index:1,v:v,__enum__:"haxe.ds.Either",toString:$estr}; },$_.__params__ = ["v"],$_)
 };
-var haxe_ds_EnumValueMap = function() {
-	haxe_ds_BalancedTree.call(this);
-};
-$hxClasses["haxe.ds.EnumValueMap"] = haxe_ds_EnumValueMap;
-haxe_ds_EnumValueMap.__name__ = "haxe.ds.EnumValueMap";
-haxe_ds_EnumValueMap.__interfaces__ = [haxe_IMap];
-haxe_ds_EnumValueMap.__super__ = haxe_ds_BalancedTree;
-haxe_ds_EnumValueMap.prototype = $extend(haxe_ds_BalancedTree.prototype,{
-	compare: function(k1,k2) {
-		var d = k1._hx_index - k2._hx_index;
-		if(d != 0) {
-			return d;
-		}
-		var p1 = Type.enumParameters(k1);
-		var p2 = Type.enumParameters(k2);
-		if(p1.length == 0 && p2.length == 0) {
-			return 0;
-		}
-		return this.compareArgs(p1,p2);
-	}
-	,compareArgs: function(a1,a2) {
-		var ld = a1.length - a2.length;
-		if(ld != 0) {
-			return ld;
-		}
-		var _g = 0;
-		var _g1 = a1.length;
-		while(_g < _g1) {
-			var i = _g++;
-			var d = this.compareArg(a1[i],a2[i]);
-			if(d != 0) {
-				return d;
-			}
-		}
-		return 0;
-	}
-	,compareArg: function(v1,v2) {
-		if(Reflect.isEnumValue(v1) && Reflect.isEnumValue(v2)) {
-			return this.compare(v1,v2);
-		} else if(((v1) instanceof Array) && ((v2) instanceof Array)) {
-			return this.compareArgs(v1,v2);
-		} else {
-			return Reflect.compare(v1,v2);
-		}
-	}
-	,__class__: haxe_ds_EnumValueMap
-});
 var haxe_ds_IntMap = function() {
 	this.h = { };
 };
@@ -1784,7 +2392,8 @@ $hxClasses["haxe.ds.IntMap"] = haxe_ds_IntMap;
 haxe_ds_IntMap.__name__ = "haxe.ds.IntMap";
 haxe_ds_IntMap.__interfaces__ = [haxe_IMap];
 haxe_ds_IntMap.prototype = {
-	get: function(key) {
+	h: null
+	,get: function(key) {
 		return this.h[key];
 	}
 	,exists: function(key) {
@@ -1811,7 +2420,37 @@ var haxe_ds_List = function() {
 $hxClasses["haxe.ds.List"] = haxe_ds_List;
 haxe_ds_List.__name__ = "haxe.ds.List";
 haxe_ds_List.prototype = {
-	__class__: haxe_ds_List
+	h: null
+	,q: null
+	,length: null
+	,push: function(item) {
+		var x = new haxe_ds__$List_ListNode(item,this.h);
+		this.h = x;
+		if(this.q == null) {
+			this.q = x;
+		}
+		this.length++;
+	}
+	,first: function() {
+		if(this.h == null) {
+			return null;
+		} else {
+			return this.h.item;
+		}
+	}
+	,pop: function() {
+		if(this.h == null) {
+			return null;
+		}
+		var x = this.h.item;
+		this.h = this.h.next;
+		if(this.h == null) {
+			this.q = null;
+		}
+		this.length--;
+		return x;
+	}
+	,__class__: haxe_ds_List
 };
 var haxe_ds__$List_ListNode = function(item,next) {
 	this.item = item;
@@ -1820,7 +2459,9 @@ var haxe_ds__$List_ListNode = function(item,next) {
 $hxClasses["haxe.ds._List.ListNode"] = haxe_ds__$List_ListNode;
 haxe_ds__$List_ListNode.__name__ = "haxe.ds._List.ListNode";
 haxe_ds__$List_ListNode.prototype = {
-	__class__: haxe_ds__$List_ListNode
+	item: null
+	,next: null
+	,__class__: haxe_ds__$List_ListNode
 };
 var haxe_ds_ObjectMap = function() {
 	this.h = { __keys__ : { }};
@@ -1829,7 +2470,16 @@ $hxClasses["haxe.ds.ObjectMap"] = haxe_ds_ObjectMap;
 haxe_ds_ObjectMap.__name__ = "haxe.ds.ObjectMap";
 haxe_ds_ObjectMap.__interfaces__ = [haxe_IMap];
 haxe_ds_ObjectMap.prototype = {
-	get: function(key) {
+	h: null
+	,set: function(key,value) {
+		var id = key.__id__;
+		if(id == null) {
+			id = (key.__id__ = $global.$haxeUID++);
+		}
+		this.h[id] = value;
+		this.h.__keys__[id] = key;
+	}
+	,get: function(key) {
 		return this.h[key.__id__];
 	}
 	,exists: function(key) {
@@ -1887,7 +2537,8 @@ haxe_ds_StringMap.valueIterator = function(h) {
 	}};
 };
 haxe_ds_StringMap.prototype = {
-	exists: function(key) {
+	h: null
+	,exists: function(key) {
 		return Object.prototype.hasOwnProperty.call(this.h,key);
 	}
 	,get: function(key) {
@@ -1901,146 +2552,198 @@ haxe_ds_StringMap.prototype = {
 	}
 	,__class__: haxe_ds_StringMap
 };
-var haxe_http_HttpBase = function(url) {
-	this.url = url;
-	this.headers = [];
-	this.params = [];
-	this.emptyOnData = $bind(this,this.onData);
+var haxe_format_JsonPrinter = function(replacer,space) {
+	this.replacer = replacer;
+	this.indent = space;
+	this.pretty = space != null;
+	this.nind = 0;
+	this.buf = new StringBuf();
 };
-$hxClasses["haxe.http.HttpBase"] = haxe_http_HttpBase;
-haxe_http_HttpBase.__name__ = "haxe.http.HttpBase";
-haxe_http_HttpBase.prototype = {
-	setHeader: function(name,value) {
+$hxClasses["haxe.format.JsonPrinter"] = haxe_format_JsonPrinter;
+haxe_format_JsonPrinter.__name__ = "haxe.format.JsonPrinter";
+haxe_format_JsonPrinter.print = function(o,replacer,space) {
+	var printer = new haxe_format_JsonPrinter(replacer,space);
+	printer.write("",o);
+	return printer.buf.b;
+};
+haxe_format_JsonPrinter.prototype = {
+	buf: null
+	,replacer: null
+	,indent: null
+	,pretty: null
+	,nind: null
+	,write: function(k,v) {
+		if(this.replacer != null) {
+			v = this.replacer(k,v);
+		}
+		var _g = Type.typeof(v);
+		switch(_g._hx_index) {
+		case 0:
+			this.buf.b += "null";
+			break;
+		case 1:
+			this.buf.b += Std.string(v);
+			break;
+		case 2:
+			var v1 = isFinite(v) ? Std.string(v) : "null";
+			this.buf.b += Std.string(v1);
+			break;
+		case 3:
+			this.buf.b += Std.string(v);
+			break;
+		case 4:
+			this.fieldsString(v,Reflect.fields(v));
+			break;
+		case 5:
+			this.buf.b += "\"<fun>\"";
+			break;
+		case 6:
+			var c = _g.c;
+			if(c == String) {
+				this.quote(v);
+			} else if(c == Array) {
+				var v1 = v;
+				this.buf.b += String.fromCodePoint(91);
+				var len = v1.length;
+				var last = len - 1;
+				var _g = 0;
+				var _g1 = len;
+				while(_g < _g1) {
+					var i = _g++;
+					if(i > 0) {
+						this.buf.b += String.fromCodePoint(44);
+					} else {
+						this.nind++;
+					}
+					if(this.pretty) {
+						this.buf.b += String.fromCodePoint(10);
+					}
+					if(this.pretty) {
+						this.buf.b += Std.string(StringTools.lpad("",this.indent,this.nind * this.indent.length));
+					}
+					this.write(i,v1[i]);
+					if(i == last) {
+						this.nind--;
+						if(this.pretty) {
+							this.buf.b += String.fromCodePoint(10);
+						}
+						if(this.pretty) {
+							this.buf.b += Std.string(StringTools.lpad("",this.indent,this.nind * this.indent.length));
+						}
+					}
+				}
+				this.buf.b += String.fromCodePoint(93);
+			} else if(c == haxe_ds_StringMap) {
+				var v1 = v;
+				var o = { };
+				var k = haxe_ds_StringMap.keysIterator(v1.h);
+				while(k.hasNext()) {
+					var k1 = k.next();
+					o[k1] = v1.h[k1];
+				}
+				var v1 = o;
+				this.fieldsString(v1,Reflect.fields(v1));
+			} else if(c == Date) {
+				var v1 = v;
+				this.quote(HxOverrides.dateStr(v1));
+			} else {
+				this.classString(v);
+			}
+			break;
+		case 7:
+			var i = v._hx_index;
+			this.buf.b += Std.string(i);
+			break;
+		case 8:
+			this.buf.b += "\"???\"";
+			break;
+		}
+	}
+	,classString: function(v) {
+		this.fieldsString(v,Type.getInstanceFields(js_Boot.getClass(v)));
+	}
+	,fieldsString: function(v,fields) {
+		this.buf.b += String.fromCodePoint(123);
+		var len = fields.length;
+		var last = len - 1;
+		var first = true;
 		var _g = 0;
-		var _g1 = this.headers.length;
+		var _g1 = len;
 		while(_g < _g1) {
 			var i = _g++;
-			if(this.headers[i].name == name) {
-				this.headers[i] = { name : name, value : value};
-				return;
+			var f = fields[i];
+			var value = Reflect.field(v,f);
+			if(Reflect.isFunction(value)) {
+				continue;
 			}
-		}
-		this.headers.push({ name : name, value : value});
-	}
-	,setPostData: function(data) {
-		this.postData = data;
-		this.postBytes = null;
-	}
-	,onData: function(data) {
-	}
-	,onBytes: function(data) {
-	}
-	,onError: function(msg) {
-	}
-	,onStatus: function(status) {
-	}
-	,hasOnData: function() {
-		return !Reflect.compareMethods($bind(this,this.onData),this.emptyOnData);
-	}
-	,success: function(data) {
-		this.responseBytes = data;
-		this.responseAsString = null;
-		if(this.hasOnData()) {
-			this.onData(this.get_responseData());
-		}
-		this.onBytes(this.responseBytes);
-	}
-	,get_responseData: function() {
-		if(this.responseAsString == null && this.responseBytes != null) {
-			this.responseAsString = this.responseBytes.getString(0,this.responseBytes.length,haxe_io_Encoding.UTF8);
-		}
-		return this.responseAsString;
-	}
-	,__class__: haxe_http_HttpBase
-};
-var haxe_http_HttpNodeJs = function(url) {
-	haxe_http_HttpBase.call(this,url);
-};
-$hxClasses["haxe.http.HttpNodeJs"] = haxe_http_HttpNodeJs;
-haxe_http_HttpNodeJs.__name__ = "haxe.http.HttpNodeJs";
-haxe_http_HttpNodeJs.__super__ = haxe_http_HttpBase;
-haxe_http_HttpNodeJs.prototype = $extend(haxe_http_HttpBase.prototype,{
-	request: function(post) {
-		var _gthis = this;
-		this.responseAsString = null;
-		this.responseBytes = null;
-		var parsedUrl = js_node_Url.parse(this.url);
-		var secure = parsedUrl.protocol == "https:";
-		var host = parsedUrl.hostname;
-		var path = parsedUrl.path;
-		var port = parsedUrl.port != null ? Std.parseInt(parsedUrl.port) : secure ? 443 : 80;
-		var h = { };
-		var _g = 0;
-		var _g1 = this.headers;
-		while(_g < _g1.length) {
-			var i = _g1[_g];
-			++_g;
-			var arr = Reflect.field(h,i.name);
-			if(arr == null) {
-				arr = [];
-				h[i.name] = arr;
-			}
-			arr.push(i.value);
-		}
-		if(this.postData != null || this.postBytes != null) {
-			post = true;
-		}
-		var uri = null;
-		var _g = 0;
-		var _g1 = this.params;
-		while(_g < _g1.length) {
-			var p = _g1[_g];
-			++_g;
-			if(uri == null) {
-				uri = "";
+			if(first) {
+				this.nind++;
+				first = false;
 			} else {
-				uri += "&";
+				this.buf.b += String.fromCodePoint(44);
 			}
-			var s = p.name;
-			var uri1 = encodeURIComponent(s) + "=";
-			var s1 = p.value;
-			uri += uri1 + encodeURIComponent(s1);
-		}
-		var question = path.split("?").length <= 1;
-		if(uri != null) {
-			path += (question ? "?" : "&") + uri;
-		}
-		var opts = { protocol : parsedUrl.protocol, hostname : host, port : port, method : post ? "POST" : "GET", path : path, headers : h};
-		var httpResponse = function(res) {
-			res.setEncoding("binary");
-			var s = res.statusCode;
-			if(s != null) {
-				_gthis.onStatus(s);
+			if(this.pretty) {
+				this.buf.b += String.fromCodePoint(10);
 			}
-			var data = [];
-			res.on("data",function(chunk) {
-				data.push(js_node_buffer_Buffer.from(chunk,"binary"));
-			});
-			res.on("end",function(_) {
-				var buf = data.length == 1 ? data[0] : js_node_buffer_Buffer.concat(data);
-				var httpResponse = buf.buffer.slice(buf.byteOffset,buf.byteOffset + buf.byteLength);
-				_gthis.responseBytes = haxe_io_Bytes.ofData(httpResponse);
-				_gthis.req = null;
-				if(s != null && s >= 200 && s < 400) {
-					_gthis.success(_gthis.responseBytes);
-				} else {
-					_gthis.onError("Http Error #" + s);
+			if(this.pretty) {
+				this.buf.b += Std.string(StringTools.lpad("",this.indent,this.nind * this.indent.length));
+			}
+			this.quote(f);
+			this.buf.b += String.fromCodePoint(58);
+			if(this.pretty) {
+				this.buf.b += String.fromCodePoint(32);
+			}
+			this.write(f,value);
+			if(i == last) {
+				this.nind--;
+				if(this.pretty) {
+					this.buf.b += String.fromCodePoint(10);
 				}
-			});
-		};
-		this.req = secure ? js_node_Https.request(opts,httpResponse) : js_node_Http.request(opts,httpResponse);
-		if(post) {
-			if(this.postData != null) {
-				this.req.write(this.postData);
-			} else if(this.postBytes != null) {
-				this.req.setHeader("Content-Length","" + this.postBytes.length);
-				this.req.write(js_node_buffer_Buffer.from(this.postBytes.b.bufferValue));
+				if(this.pretty) {
+					this.buf.b += Std.string(StringTools.lpad("",this.indent,this.nind * this.indent.length));
+				}
 			}
 		}
-		this.req.end();
+		this.buf.b += String.fromCodePoint(125);
 	}
-	,__class__: haxe_http_HttpNodeJs
-});
+	,quote: function(s) {
+		this.buf.b += String.fromCodePoint(34);
+		var i = 0;
+		while(true) {
+			var c = s.charCodeAt(i++);
+			if(c != c) {
+				break;
+			}
+			switch(c) {
+			case 8:
+				this.buf.b += "\\b";
+				break;
+			case 9:
+				this.buf.b += "\\t";
+				break;
+			case 10:
+				this.buf.b += "\\n";
+				break;
+			case 12:
+				this.buf.b += "\\f";
+				break;
+			case 13:
+				this.buf.b += "\\r";
+				break;
+			case 34:
+				this.buf.b += "\\\"";
+				break;
+			case 92:
+				this.buf.b += "\\\\";
+				break;
+			default:
+				this.buf.b += String.fromCodePoint(c);
+			}
+		}
+		this.buf.b += String.fromCodePoint(34);
+	}
+	,__class__: haxe_format_JsonPrinter
+};
 var haxe_io_Eof = function() {
 };
 $hxClasses["haxe.io.Eof"] = haxe_io_Eof;
@@ -2123,8 +2826,9 @@ haxe_io_Path.join = function(paths) {
 	var _g1 = 1;
 	var _g2 = _g.length;
 	while(_g1 < _g2) {
+		var i = _g1++;
 		path = haxe_io_Path.addTrailingSlash(path);
-		path += _g[_g1++];
+		path += _g[i];
 	}
 	return haxe_io_Path.normalize(path);
 };
@@ -2150,11 +2854,12 @@ haxe_io_Path.normalize = function(path) {
 			target.push(token);
 		}
 	}
+	var tmp = target.join(slash);
 	var acc_b = "";
 	var colon = false;
 	var slashes = false;
 	var _g2_offset = 0;
-	var _g2_s = target.join(slash);
+	var _g2_s = tmp;
 	while(_g2_offset < _g2_s.length) {
 		var s = _g2_s;
 		var index = _g2_offset++;
@@ -2228,7 +2933,11 @@ haxe_io_Path.isAbsolute = function(path) {
 	return false;
 };
 haxe_io_Path.prototype = {
-	toString: function() {
+	dir: null
+	,file: null
+	,ext: null
+	,backslash: null
+	,toString: function() {
 		return (this.dir == null ? "" : this.dir + (this.backslash ? "\\" : "/")) + this.file + (this.ext == null ? "" : "." + this.ext);
 	}
 	,__class__: haxe_io_Path
@@ -2240,7 +2949,9 @@ var haxe_iterators_ArrayIterator = function(array) {
 $hxClasses["haxe.iterators.ArrayIterator"] = haxe_iterators_ArrayIterator;
 haxe_iterators_ArrayIterator.__name__ = "haxe.iterators.ArrayIterator";
 haxe_iterators_ArrayIterator.prototype = {
-	hasNext: function() {
+	array: null
+	,current: null
+	,hasNext: function() {
 		return this.current < this.array.length;
 	}
 	,next: function() {
@@ -2250,7 +2961,8 @@ haxe_iterators_ArrayIterator.prototype = {
 };
 var httpstatus_HttpStatusCode = {};
 httpstatus_HttpStatusCode.toMessage = function(this1) {
-	return httpstatus_HttpStatusMessage.fromCode(this1);
+	var this2 = httpstatus_HttpStatusMessage.fromCode(this1);
+	return this2;
 };
 httpstatus_HttpStatusCode.toInt = function(this1) {
 	return this1;
@@ -2262,14 +2974,18 @@ httpstatus_HttpStatusCode.toWebResponse = function(this1) {
 	return httpstatus_HttpStatusCode.toOutgoingResponse(this1);
 };
 httpstatus_HttpStatusCode.toOutgoingResponse = function(this1) {
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(this1,httpstatus_HttpStatusMessage.fromCode(this1),[new tink_http_HeaderField("content-length".toLowerCase(),"0")],"HTTP/1.1"),tink_io_Source.EMPTY);
+	var this2 = httpstatus_HttpStatusMessage.fromCode(this1);
+	var this3 = new tink_http_ResponseHeaderBase(this1,this2,[new tink_http_HeaderField("content-length".toLowerCase(),"0")],"HTTP/1.1");
+	var this1 = new tink_http__$Response_OutgoingResponseData(this3,tink_io_Source.EMPTY);
+	return this1;
 };
 httpstatus_HttpStatusCode.fromIncomingResponse = function(res) {
 	return res.header.statusCode;
 };
 var httpstatus_HttpStatusMessage = {};
 httpstatus_HttpStatusMessage._new = function(statusCode) {
-	return httpstatus_HttpStatusMessage.fromCode(statusCode);
+	var this1 = httpstatus_HttpStatusMessage.fromCode(statusCode);
+	return this1;
 };
 httpstatus_HttpStatusMessage.fromCode = function(statusCode) {
 	switch(statusCode) {
@@ -2524,8 +3240,9 @@ js_Boot.__interfLoop = function(cc,cl) {
 			var _g = 0;
 			var _g1 = intf.length;
 			while(_g < _g1) {
-				var i = intf[_g++];
-				if(i == cl || js_Boot.__interfLoop(i,cl)) {
+				var i = _g++;
+				var i1 = intf[i];
+				if(i1 == cl || js_Boot.__interfLoop(i1,cl)) {
 					return true;
 				}
 			}
@@ -2614,10 +3331,7 @@ js_lib__$ArrayBuffer_ArrayBufferCompat.sliceImpl = function(begin,end) {
 	resultArray.set(u);
 	return resultArray.buffer;
 };
-var js_node_ChildProcess = require("child_process");
 var js_node_Fs = require("fs");
-var js_node_Http = require("http");
-var js_node_Https = require("https");
 var js_node_KeyValue = {};
 js_node_KeyValue.get_key = function(this1) {
 	return this1[0];
@@ -2626,7 +3340,6 @@ js_node_KeyValue.get_value = function(this1) {
 	return this1[1];
 };
 var js_node_Path = require("path");
-var js_node_Url = require("url");
 var js_node_buffer_Buffer = require("buffer").Buffer;
 var js_node_buffer__$Buffer_Helper = function() { };
 $hxClasses["js.node.buffer._Buffer.Helper"] = js_node_buffer__$Buffer_Helper;
@@ -2653,7 +3366,8 @@ js_node_stream_WritableNewOptionsAdapter.from = function(options) {
 };
 var js_node_url_URLSearchParamsEntry = {};
 js_node_url_URLSearchParamsEntry._new = function(name,value) {
-	return [name,value];
+	var this1 = [name,value];
+	return this1;
 };
 js_node_url_URLSearchParamsEntry.get_name = function(this1) {
 	return this1[0];
@@ -2695,7 +3409,8 @@ $hxClasses["poscope.wire.IHead"] = poscope_wire_IHead;
 poscope_wire_IHead.__name__ = "poscope.wire.IHead";
 poscope_wire_IHead.__isInterface__ = true;
 poscope_wire_IHead.prototype = {
-	__class__: poscope_wire_IHead
+	render: null
+	,__class__: poscope_wire_IHead
 };
 var poscope_views_Head = function() {
 };
@@ -2705,10 +3420,12 @@ poscope_views_Head.__interfaces__ = [poscope_wire_IHead];
 poscope_views_Head.prototype = {
 	render: function(scripts,styles,actions) {
 		var ret = tink_template_Html.buffer();
+		ret.out += "<!-- POSITION: {\"min\":0,\"max\":0,\"file\":\"/Users/postite/Documents/LAB/poscope/src//poscope/views/renderHead.tt\"} -->";
 		ret.out += "<head>\n    <meta charset=\"UTF-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\">\n    <script   src=\"https://code.jquery.com/jquery-3.3.1.slim.min.js\"   integrity=\"sha256-3edrmyuQ0w65f8gfBsqowzjJe2iM6n0nKciPUp8y+7E=\"   crossorigin=\"anonymous\"></script>\n\t<link rel=\"stylesheet\" href=\"https://cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.css\">\n    <script src=\"https://cdn.jsdelivr.net/npm/semantic-ui@2.4.2/dist/semantic.min.js\"></script>\n\t<link href=\"https://fonts.googleapis.com/css?family=Nunito\" rel=\"stylesheet\"> \n    <meta http-equiv=\"X-UA-Compatible\" content=\"ie=edge\">\n    \n   \n    ";
 		var _g = 0;
 		while(_g < styles.length) {
-			var style = styles[_g++];
+			var style = styles[_g];
+			++_g;
 			ret.out += "\n    <link rel=\"stylesheet\" href=\"";
 			var b = tink_template_Html.escape(style);
 			ret.out += b;
@@ -2720,7 +3437,8 @@ poscope_views_Head.prototype = {
 		ret.out += "\";\n    \n    </script>\n    ";
 		var _g = 0;
 		while(_g < scripts.length) {
-			var scr = scripts[_g++];
+			var scr = scripts[_g];
+			++_g;
 			ret.out += "\n    <script src=\"";
 			var b = tink_template_Html.escape(scr);
 			ret.out += b;
@@ -2736,7 +3454,14 @@ $hxClasses["poscope.wire.ILayout"] = poscope_wire_ILayout;
 poscope_wire_ILayout.__name__ = "poscope.wire.ILayout";
 poscope_wire_ILayout.__isInterface__ = true;
 poscope_wire_ILayout.prototype = {
-	__class__: poscope_wire_ILayout
+	viewContent: null
+	,id: null
+	,footer: null
+	,header: null
+	,head: null
+	,menu: null
+	,render: null
+	,__class__: poscope_wire_ILayout
 };
 var poscope_views_Layout = function() {
 	this.footer = poscope_views__$_$impl_Footer.render();
@@ -2746,8 +3471,15 @@ $hxClasses["poscope.views.Layout"] = poscope_views_Layout;
 poscope_views_Layout.__name__ = "poscope.views.Layout";
 poscope_views_Layout.__interfaces__ = [poscope_wire_ILayout];
 poscope_views_Layout.prototype = {
-	render: function() {
+	viewContent: null
+	,footer: null
+	,header: null
+	,head: null
+	,menu: null
+	,id: null
+	,render: function() {
 		var ret = tink_template_Html.buffer();
+		ret.out += "<!-- POSITION: {\"min\":0,\"max\":0,\"file\":\"/Users/postite/Documents/LAB/poscope/src//poscope/views/layout.tt\"} -->";
 		ret.out += "<!DOCTYPE html>\n<html lang=\"en\">\n    ";
 		ret.out += this.head;
 		ret.out += "\n<body>\n<div class=\"maincontainer\" id=\"";
@@ -2771,6 +3503,7 @@ $hxClasses["poscope.views.__impl.Footer"] = poscope_views__$_$impl_Footer;
 poscope_views__$_$impl_Footer.__name__ = "poscope.views.__impl.Footer";
 poscope_views__$_$impl_Footer.render = function() {
 	var ret = tink_template_Html.buffer();
+	ret.out += "<!-- POSITION: {\"min\":24,\"max\":28,\"file\":\"/Users/postite/Documents/LAB/poscope/src//poscope/views/Footer.tt\"} -->";
 	ret.out += "\n<div id=\"footer\" class=\"ui sticky\">\n     <h1>Footer</h1>\n    </div>\n";
 	return ret.out;
 };
@@ -2779,6 +3512,7 @@ $hxClasses["poscope.views.__impl.Header"] = poscope_views__$_$impl_Header;
 poscope_views__$_$impl_Header.__name__ = "poscope.views.__impl.Header";
 poscope_views__$_$impl_Header.render = function() {
 	var ret = tink_template_Html.buffer();
+	ret.out += "<!-- POSITION: {\"min\":24,\"max\":28,\"file\":\"/Users/postite/Documents/LAB/poscope/src//poscope/views/Header.tt\"} -->";
 	ret.out += "\n<div id=\"header\" class=\"ui sticky\">\n      <h1>Head</h1>\n    </div>\n";
 	return ret.out;
 };
@@ -2884,7 +3618,8 @@ poscope_wire_HtmlPart._new = function(p) {
 	return p;
 };
 poscope_wire_HtmlPart.toHtml = function(this1) {
-	return this1;
+	var this2 = this1;
+	return this2;
 };
 var poscope_wire_Log = function() { };
 $hxClasses["poscope.wire.Log"] = poscope_wire_Log;
@@ -2893,35 +3628,15 @@ poscope_wire_Log.log = function(msg,$with,pos) {
 	if($with == null) {
 		$with = "";
 	}
-	haxe_Log.trace("" + pos.className + " " + pos.lineNumber + " " + $with + ": " + Std.string(msg),{ fileName : "poscope/wire/Log.hx", lineNumber : 5, className : "poscope.wire.Log", methodName : "log"});
+	console.log("poscope/wire/Log.hx:5:","" + pos.className + " " + pos.lineNumber + " " + $with + ": " + Std.string(msg));
 	return msg;
-};
-var server_app_Root = function() {
-	haxe_Log.trace("hello",{ fileName : "src/server/app/Root.hx", lineNumber : 9, className : "server.app.Root", methodName : "new"});
-	poscope_wire_Actor.set_defaultLayout(new poscope_views_Layout());
-	poscope_wire_Actor.set_defaultHead(new poscope_views_Head());
-	poscope_wire_Actor.defaultLayout.footer = poscope_views__$_$impl_Footer.render();
-	poscope_wire_Actor.defaultLayout.menu = tink_template_Html.of([{ url : "/rss", title : "abonnes toi poule ", description : "le flux nrss du podcast"}]);
-	poscope_wire_Actor.defaultLayout.header = poscope_views__$_$impl_Header.render();
-};
-$hxClasses["server.app.Root"] = server_app_Root;
-server_app_Root.__name__ = "server.app.Root";
-server_app_Root.prototype = {
-	index: function() {
-		return poscope_wire_Actor.addAction(poscope_wire_Actor.withLayout(server_views__$_$impl_Home.render()),poscope_wire_ActionCommand.toString(command_Command1)).render();
-	}
-	,tarif: function() {
-		haxe_Log.trace("test",{ fileName : "src/server/app/Root.hx", lineNumber : 43, className : "server.app.Root", methodName : "tarif"});
-		return "test";
-	}
-	,__class__: server_app_Root
 };
 var server_app_Server = function() { };
 $hxClasses["server.app.Server"] = server_app_Server;
 server_app_Server.__name__ = "server.app.Server";
 server_app_Server.main = function() {
 	var container = new tink_http_containers_NodeContainer(tink_http_containers__$NodeContainer_ServerKindBase.Port(8080));
-	var router = new tink_web_routing_Router0(new server_app_Root());
+	var router = new tink_web_routing_Router2(new server_app_Root());
 	var handler = new tink_http_SimpleHandler(function(req) {
 		var this1 = router.route(tink_web_routing_Context.ofRequest(req));
 		var f = tink_core_Recover.ofSync(tink_http_OutgoingResponse.reportError);
@@ -2937,12 +3652,36 @@ server_app_Server.main = function() {
 	handler = new tink_http_middleware_Static("./assets","/").apply(handler);
 	container.run(handler);
 };
+var server_app_Root = function() {
+	this.flat = new flat_CocoFlat();
+	console.log("src/server/app/Server.hx:35:","hello");
+	poscope_wire_Actor.set_defaultLayout(new poscope_views_Layout());
+	poscope_wire_Actor.set_defaultHead(new poscope_views_Head());
+	poscope_wire_Actor.defaultLayout.footer = poscope_views__$_$impl_Footer.render();
+	var nav = [{ url : "/rss", title : "abonnes toi poule ", description : "le flux nrss du podcast"}];
+	poscope_wire_Actor.defaultLayout.menu = tink_template_Html.of(nav);
+	poscope_wire_Actor.defaultLayout.header = poscope_views__$_$impl_Header.render();
+};
+$hxClasses["server.app.Root"] = server_app_Root;
+server_app_Root.__name__ = "server.app.Root";
+server_app_Root.prototype = {
+	index: function() {
+		return poscope_wire_Actor.addAction(poscope_wire_Actor.withLayout(server_views__$_$impl_Home.render()),poscope_wire_ActionCommand.toString(command_Command1)).render();
+	}
+	,flat: null
+	,tarif: function() {
+		console.log("src/server/app/Server.hx:69:","test");
+		return "test";
+	}
+	,__class__: server_app_Root
+};
 var server_views__$_$impl_Home = function() { };
 $hxClasses["server.views.__impl.Home"] = server_views__$_$impl_Home;
 server_views__$_$impl_Home.__name__ = "server.views.__impl.Home";
 server_views__$_$impl_Home.render = function() {
 	var ret = tink_template_Html.buffer();
-	ret.out += "\n    <div class=\"hop\">\n        hello \n    </div>\n";
+	ret.out += "<!-- POSITION: {\"min\":31,\"max\":35,\"file\":\"src//server/views/Home.tt\"} -->";
+	ret.out += "\n    <div class=\"hop\">\n        hello\n    </div>\n";
 	return ret.out;
 };
 var sys_FileSystem = function() { };
@@ -2989,7 +3728,9 @@ sys_FileSystem.deleteDirectory = function(path) {
 		var _g = 0;
 		var _g1 = js_node_Fs.readdirSync(path);
 		while(_g < _g1.length) {
-			var curPath = path + "/" + _g1[_g++];
+			var file = _g1[_g];
+			++_g;
+			var curPath = path + "/" + file;
 			if(sys_FileSystem.isDirectory(curPath)) {
 				sys_FileSystem.deleteDirectory(curPath);
 			} else {
@@ -2999,21 +3740,12 @@ sys_FileSystem.deleteDirectory = function(path) {
 		js_node_Fs.rmdirSync(path);
 	}
 };
-var tink_Anon = function() { };
-$hxClasses["tink.Anon"] = tink_Anon;
-tink_Anon.__name__ = "tink.Anon";
-tink_Anon.getExistentFields = function(o) {
-	var ret = { };
-	var _g = 0;
-	var _g1 = Reflect.fields(o);
-	while(_g < _g1.length) ret[_g1[_g++]] = true;
-	return ret;
-};
 var tink_chunk_ChunkBase = function() { };
 $hxClasses["tink.chunk.ChunkBase"] = tink_chunk_ChunkBase;
 tink_chunk_ChunkBase.__name__ = "tink.chunk.ChunkBase";
 tink_chunk_ChunkBase.prototype = {
-	getCursor: function() {
+	flattened: null
+	,getCursor: function() {
 		if(this.flattened == null) {
 			this.flatten(this.flattened = []);
 		}
@@ -3028,7 +3760,15 @@ $hxClasses["tink.chunk.ChunkObject"] = tink_chunk_ChunkObject;
 tink_chunk_ChunkObject.__name__ = "tink.chunk.ChunkObject";
 tink_chunk_ChunkObject.__isInterface__ = true;
 tink_chunk_ChunkObject.prototype = {
-	__class__: tink_chunk_ChunkObject
+	getByte: null
+	,getCursor: null
+	,flatten: null
+	,getLength: null
+	,slice: null
+	,toString: null
+	,toBytes: null
+	,blitTo: null
+	,__class__: tink_chunk_ChunkObject
 };
 var tink__$Chunk_EmptyChunk = function() {
 };
@@ -3105,7 +3845,10 @@ tink_Chunk.join = function(chunks) {
 			var ret = tink_Chunk.concat(chunks[0],chunks[1]);
 			var _g = 2;
 			var _g1 = chunks.length;
-			while(_g < _g1) ret = tink_Chunk.concat(ret,chunks[_g++]);
+			while(_g < _g1) {
+				var i = _g++;
+				ret = tink_Chunk.concat(ret,chunks[i]);
+			}
 			return ret;
 		}
 	}
@@ -3170,7 +3913,8 @@ tink_HtmlString._new = function(s) {
 	return s;
 };
 tink_HtmlString.escape = function(s) {
-	return s == null ? "" : tink_HtmlString.htmlEscape(s);
+	var this1 = s == null ? "" : tink_HtmlString.htmlEscape(s);
+	return this1;
 };
 tink_HtmlString.join = function(a) {
 	return a.join("");
@@ -3459,7 +4203,8 @@ tink_SingleHostUrl.ofUrl = function(u) {
 	default:
 		v = tink_Url.make({ path : u.path, query : u.query, hosts : [u.hosts[0]], auth : u.auth, scheme : u.scheme, hash : u.hash});
 	}
-	return v;
+	var this1 = v;
+	return this1;
 };
 tink_SingleHostUrl.ofString = function(s) {
 	return tink_SingleHostUrl.ofUrl(tink_Url.fromString(s));
@@ -3482,7 +4227,11 @@ tink_chunk_ByteChunk.of = function(b) {
 };
 tink_chunk_ByteChunk.__super__ = tink_chunk_ChunkBase;
 tink_chunk_ByteChunk.prototype = $extend(tink_chunk_ChunkBase.prototype,{
-	get_wrapped: function() {
+	data: null
+	,from: null
+	,to: null
+	,wrapped: null
+	,get_wrapped: function() {
 		if(this.wrapped == null) {
 			this.wrapped = haxe_io_Bytes.ofData(this.data);
 		}
@@ -3557,7 +4306,15 @@ tink_chunk_ChunkCursor.create = function(parts) {
 	return ret;
 };
 tink_chunk_ChunkCursor.prototype = {
-	clone: function() {
+	parts: null
+	,curPart: null
+	,curPartIndex: null
+	,curOffset: null
+	,curLength: null
+	,length: null
+	,currentPos: null
+	,currentByte: null
+	,clone: function() {
 		var ret = new tink_chunk_ChunkCursor();
 		ret.parts = this.parts.slice();
 		ret.curPart = this.curPart;
@@ -3630,7 +4387,10 @@ tink_chunk_ChunkCursor.prototype = {
 		var _g = [];
 		var _g1 = 0;
 		var _g2 = this.curPartIndex;
-		while(_g1 < _g2) _g.push(this.parts[_g1++]);
+		while(_g1 < _g2) {
+			var i = _g1++;
+			_g.push(this.parts[i]);
+		}
 		_g.push(this.curPart.slice(0,this.curOffset));
 		return tink_Chunk.join(_g);
 	}
@@ -3641,7 +4401,10 @@ tink_chunk_ChunkCursor.prototype = {
 		var _g = [];
 		var _g1 = this.curPartIndex;
 		var _g2 = this.parts.length;
-		while(_g1 < _g2) _g.push(this.parts[_g1++]);
+		while(_g1 < _g2) {
+			var i = _g1++;
+			_g.push(this.parts[i]);
+		}
 		if(_g.length > 0) {
 			_g[0] = this.curPart.slice(this.curOffset,this.curLength);
 		}
@@ -3710,7 +4473,8 @@ tink_chunk_ChunkCursor.prototype = {
 			var _g1 = this.curPartIndex + 1;
 			var _g2 = this.parts.length;
 			while(_g1 < _g2) {
-				var _g3 = part(this.parts[_g1++],0);
+				var i = _g1++;
+				var _g3 = part(this.parts[i],0);
 				switch(_g3._hx_index) {
 				case 0:
 					return haxe_ds_Option.Some(_g3.v);
@@ -3806,7 +4570,9 @@ var tink_chunk_ChunkIterator = function(target) {
 $hxClasses["tink.chunk.ChunkIterator"] = tink_chunk_ChunkIterator;
 tink_chunk_ChunkIterator.__name__ = "tink.chunk.ChunkIterator";
 tink_chunk_ChunkIterator.prototype = {
-	hasNext: function() {
+	target: null
+	,_hasNext: null
+	,hasNext: function() {
 		return this._hasNext;
 	}
 	,next: function() {
@@ -3872,7 +4638,11 @@ tink_chunk_CompoundChunk.create = function(chunks,depth) {
 	var offsets = [0];
 	var length = 0;
 	var _g = 0;
-	while(_g < chunks.length) offsets.push(length += chunks[_g++].getLength());
+	while(_g < chunks.length) {
+		var c = chunks[_g];
+		++_g;
+		offsets.push(length += c.getLength());
+	}
 	ret.chunks = chunks;
 	ret.offsets = offsets;
 	ret.length = length;
@@ -3881,7 +4651,11 @@ tink_chunk_CompoundChunk.create = function(chunks,depth) {
 };
 tink_chunk_CompoundChunk.__super__ = tink_chunk_ChunkBase;
 tink_chunk_CompoundChunk.prototype = $extend(tink_chunk_ChunkBase.prototype,{
-	getByte: function(i) {
+	chunks: null
+	,offsets: null
+	,length: null
+	,depth: null
+	,getByte: function(i) {
 		var index = this.findChunk(i);
 		return this.chunks[index].getByte(i - this.offsets[index]);
 	}
@@ -3904,7 +4678,11 @@ tink_chunk_CompoundChunk.prototype = $extend(tink_chunk_ChunkBase.prototype,{
 	,flatten: function(into) {
 		var _g = 0;
 		var _g1 = this.chunks;
-		while(_g < _g1.length) _g1[_g++].flatten(into);
+		while(_g < _g1.length) {
+			var c = _g1[_g];
+			++_g;
+			c.flatten(into);
+		}
 	}
 	,slice: function(from,to) {
 		var idxFrom = this.findChunk(from);
@@ -3914,8 +4692,10 @@ tink_chunk_CompoundChunk.prototype = $extend(tink_chunk_ChunkBase.prototype,{
 			return this.chunks[idxFrom].slice(from - offset,to - offset);
 		}
 		var ret = this.chunks.slice(idxFrom,idxTo + 1);
-		ret[0] = ret[0].slice(from - this.offsets[idxFrom],this.offsets[idxFrom + 1]);
-		ret[ret.length - 1] = ret[ret.length - 1].slice(0,to - this.offsets[idxTo]);
+		var c = ret[0];
+		ret[0] = c.slice(from - this.offsets[idxFrom],this.offsets[idxFrom + 1]);
+		var c = ret[ret.length - 1];
+		ret[ret.length - 1] = c.slice(0,to - this.offsets[idxTo]);
 		return tink_chunk_CompoundChunk.create(ret,this.depth);
 	}
 	,blitTo: function(target,offset) {
@@ -3953,7 +4733,10 @@ tink_chunk_Seekable.ofBytes = function(b) {
 	var _g = [];
 	var _g1 = 0;
 	var _g2 = b.length;
-	while(_g1 < _g2) _g.push(b.b[_g1++]);
+	while(_g1 < _g2) {
+		var i = _g1++;
+		_g.push(b.b[i]);
+	}
 	return _g;
 };
 tink_chunk_Seekable.ofString = function(s) {
@@ -3966,7 +4749,8 @@ $hxClasses["tink.chunk.nodejs.BufferChunk"] = tink_chunk_nodejs_BufferChunk;
 tink_chunk_nodejs_BufferChunk.__name__ = "tink.chunk.nodejs.BufferChunk";
 tink_chunk_nodejs_BufferChunk.__interfaces__ = [tink_chunk_ChunkObject];
 tink_chunk_nodejs_BufferChunk.prototype = {
-	getByte: function(i) {
+	buffer: null
+	,getByte: function(i) {
 		return this.buffer[i];
 	}
 	,getCursor: function() {
@@ -4014,7 +4798,9 @@ var tink_core_Annex = function(target) {
 $hxClasses["tink.core.Annex"] = tink_core_Annex;
 tink_core_Annex.__name__ = "tink.core.Annex";
 tink_core_Annex.prototype = {
-	__class__: tink_core_Annex
+	target: null
+	,registry: null
+	,__class__: tink_core_Annex
 };
 var tink_core_Callback = {};
 tink_core_Callback._new = function(f) {
@@ -4040,7 +4826,11 @@ tink_core_Callback.fromNiladic = function(f) {
 tink_core_Callback.fromMany = function(callbacks) {
 	return function(v) {
 		var _g = 0;
-		while(_g < callbacks.length) tink_core_Callback.invoke(callbacks[_g++],v);
+		while(_g < callbacks.length) {
+			var callback = callbacks[_g];
+			++_g;
+			tink_core_Callback.invoke(callback,v);
+		}
 	};
 };
 tink_core_Callback.defer = function(f) {
@@ -4051,7 +4841,8 @@ $hxClasses["tink.core.LinkObject"] = tink_core_LinkObject;
 tink_core_LinkObject.__name__ = "tink.core.LinkObject";
 tink_core_LinkObject.__isInterface__ = true;
 tink_core_LinkObject.prototype = {
-	__class__: tink_core_LinkObject
+	cancel: null
+	,__class__: tink_core_LinkObject
 };
 var tink_core_CallbackLinkRef = function() {
 };
@@ -4059,7 +4850,8 @@ $hxClasses["tink.core.CallbackLinkRef"] = tink_core_CallbackLinkRef;
 tink_core_CallbackLinkRef.__name__ = "tink.core.CallbackLinkRef";
 tink_core_CallbackLinkRef.__interfaces__ = [tink_core_LinkObject];
 tink_core_CallbackLinkRef.prototype = {
-	cancel: function() {
+	link: null
+	,cancel: function() {
 		var this1 = this.link;
 		if(this1 != null) {
 			this1.cancel();
@@ -4069,7 +4861,8 @@ tink_core_CallbackLinkRef.prototype = {
 };
 var tink_core_CallbackLink = {};
 tink_core_CallbackLink._new = function(link) {
-	return new tink_core_SimpleLink(link);
+	var this1 = new tink_core_SimpleLink(link);
+	return this1;
 };
 tink_core_CallbackLink.cancel = function(this1) {
 	if(this1 != null) {
@@ -4098,13 +4891,14 @@ tink_core_CallbackLink.toCallback = function(this1) {
 	}
 };
 tink_core_CallbackLink.fromFunction = function(f) {
-	return new tink_core_SimpleLink(f);
+	var this1 = new tink_core_SimpleLink(f);
+	return this1;
 };
 tink_core_CallbackLink.join = function(this1,b) {
 	return new tink_core__$Callback_LinkPair(this1,b);
 };
 tink_core_CallbackLink.fromMany = function(callbacks) {
-	return new tink_core_SimpleLink(function() {
+	var this1 = new tink_core_SimpleLink(function() {
 		if(callbacks != null) {
 			var _g = 0;
 			while(_g < callbacks.length) {
@@ -4118,6 +4912,7 @@ tink_core_CallbackLink.fromMany = function(callbacks) {
 			callbacks = null;
 		}
 	});
+	return this1;
 };
 var tink_core_SimpleLink = function(f) {
 	this.f = f;
@@ -4126,7 +4921,8 @@ $hxClasses["tink.core.SimpleLink"] = tink_core_SimpleLink;
 tink_core_SimpleLink.__name__ = "tink.core.SimpleLink";
 tink_core_SimpleLink.__interfaces__ = [tink_core_LinkObject];
 tink_core_SimpleLink.prototype = {
-	cancel: function() {
+	f: null
+	,cancel: function() {
 		if(this.f != null) {
 			this.f();
 			this.f = null;
@@ -4143,7 +4939,10 @@ $hxClasses["tink.core._Callback.LinkPair"] = tink_core__$Callback_LinkPair;
 tink_core__$Callback_LinkPair.__name__ = "tink.core._Callback.LinkPair";
 tink_core__$Callback_LinkPair.__interfaces__ = [tink_core_LinkObject];
 tink_core__$Callback_LinkPair.prototype = {
-	cancel: function() {
+	a: null
+	,b: null
+	,dissolved: null
+	,cancel: function() {
 		if(!this.dissolved) {
 			this.dissolved = true;
 			var this1 = this.a;
@@ -4171,7 +4970,9 @@ $hxClasses["tink.core._Callback.ListCell"] = tink_core__$Callback_ListCell;
 tink_core__$Callback_ListCell.__name__ = "tink.core._Callback.ListCell";
 tink_core__$Callback_ListCell.__interfaces__ = [tink_core_LinkObject];
 tink_core__$Callback_ListCell.prototype = {
-	invoke: function(data) {
+	cb: null
+	,list: null
+	,invoke: function(data) {
 		if(this.list != null) {
 			this.cb(data);
 		}
@@ -4197,7 +4998,9 @@ $hxClasses["tink.core.Disposable"] = tink_core_Disposable;
 tink_core_Disposable.__name__ = "tink.core.Disposable";
 tink_core_Disposable.__isInterface__ = true;
 tink_core_Disposable.prototype = {
-	__class__: tink_core_Disposable
+	get_disposed: null
+	,ondispose: null
+	,__class__: tink_core_Disposable
 };
 var tink_core_OwnedDisposable = function() { };
 $hxClasses["tink.core.OwnedDisposable"] = tink_core_OwnedDisposable;
@@ -4205,7 +5008,8 @@ tink_core_OwnedDisposable.__name__ = "tink.core.OwnedDisposable";
 tink_core_OwnedDisposable.__isInterface__ = true;
 tink_core_OwnedDisposable.__interfaces__ = [tink_core_Disposable];
 tink_core_OwnedDisposable.prototype = {
-	__class__: tink_core_OwnedDisposable
+	dispose: null
+	,__class__: tink_core_OwnedDisposable
 };
 var tink_core_SimpleDisposable = function(dispose) {
 	this.disposeHandlers = [];
@@ -4217,7 +5021,9 @@ tink_core_SimpleDisposable.__interfaces__ = [tink_core_OwnedDisposable];
 tink_core_SimpleDisposable.noop = function() {
 };
 tink_core_SimpleDisposable.prototype = {
-	get_disposed: function() {
+	f: null
+	,disposeHandlers: null
+	,get_disposed: function() {
 		return this.disposeHandlers == null;
 	}
 	,ondispose: function(d) {
@@ -4236,7 +5042,11 @@ tink_core_SimpleDisposable.prototype = {
 			this.f = tink_core_SimpleDisposable.noop;
 			f();
 			var _g1 = 0;
-			while(_g1 < _g.length) _g[_g1++]();
+			while(_g1 < _g.length) {
+				var h = _g[_g1];
+				++_g1;
+				h();
+			}
 		}
 	}
 	,__class__: tink_core_SimpleDisposable
@@ -4265,9 +5075,16 @@ $hxClasses["tink.core.CallbackList"] = tink_core_CallbackList;
 tink_core_CallbackList.__name__ = "tink.core.CallbackList";
 tink_core_CallbackList.__super__ = tink_core_SimpleDisposable;
 tink_core_CallbackList.prototype = $extend(tink_core_SimpleDisposable.prototype,{
-	get_length: function() {
+	destructive: null
+	,cells: null
+	,get_length: function() {
 		return this.used;
 	}
+	,used: null
+	,queue: null
+	,busy: null
+	,ondrain: null
+	,onfill: null
 	,release: function() {
 		if(--this.used <= this.cells.length >> 1) {
 			this.compact();
@@ -4346,7 +5163,8 @@ tink_core_CallbackList.prototype = $extend(tink_core_SimpleDisposable.prototype,
 					var length = _gthis.cells.length;
 					var _g1 = 0;
 					while(_g1 < length) {
-						var _this = _gthis.cells[_g1++];
+						var i = _g1++;
+						var _this = _gthis.cells[i];
 						if(_this.list != null) {
 							_this.cb(data);
 						}
@@ -4385,7 +5203,8 @@ tink_core_CallbackList.prototype = $extend(tink_core_SimpleDisposable.prototype,
 						var length = _gthis.cells.length;
 						var _g1 = 0;
 						while(_g1 < length) {
-							var _this = _gthis.cells[_g1++];
+							var i = _g1++;
+							var _this = _gthis.cells[i];
 							if(_this.list != null) {
 								_this.cb(data);
 							}
@@ -4525,7 +5344,14 @@ tink_core_TypedError.tryFinally = function(f,cleanup) {
 	return null;
 };
 tink_core_TypedError.prototype = {
-	printPos: function() {
+	message: null
+	,code: null
+	,data: null
+	,pos: null
+	,callStack: null
+	,exceptionStack: null
+	,isTinkError: null
+	,printPos: function() {
 		return this.pos.className + "." + this.pos.methodName + ":" + this.pos.lineNumber;
 	}
 	,toString: function() {
@@ -4539,7 +5365,8 @@ tink_core_TypedError.prototype = {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(this)));
 	}
 	,throwSelf: function() {
-		throw haxe_Exception.thrown(this);
+		var any = this;
+		throw haxe_Exception.thrown(any);
 	}
 	,toJsError: function() {
 		var value = this.data;
@@ -4547,7 +5374,8 @@ tink_core_TypedError.prototype = {
 		if(_g == null) {
 			return new tink_core__$Error_TinkError(this);
 		} else {
-			return _g;
+			var e = _g;
+			return e;
 		}
 	}
 	,__class__: tink_core_TypedError
@@ -4565,14 +5393,18 @@ $hxClasses["tink.core._Error.TinkError"] = tink_core__$Error_TinkError;
 tink_core__$Error_TinkError.__name__ = "tink.core._Error.TinkError";
 tink_core__$Error_TinkError.__super__ = Error;
 tink_core__$Error_TinkError.prototype = $extend(Error.prototype,{
-	__class__: tink_core__$Error_TinkError
+	data: null
+	,__class__: tink_core__$Error_TinkError
 });
 var tink_core__$Future_FutureObject = function() { };
 $hxClasses["tink.core._Future.FutureObject"] = tink_core__$Future_FutureObject;
 tink_core__$Future_FutureObject.__name__ = "tink.core._Future.FutureObject";
 tink_core__$Future_FutureObject.__isInterface__ = true;
 tink_core__$Future_FutureObject.prototype = {
-	__class__: tink_core__$Future_FutureObject
+	getStatus: null
+	,handle: null
+	,eager: null
+	,__class__: tink_core__$Future_FutureObject
 };
 var tink_core__$Future_NeverFuture = function() {
 };
@@ -4595,7 +5427,10 @@ $hxClasses["tink.core._Lazy.Computable"] = tink_core__$Lazy_Computable;
 tink_core__$Lazy_Computable.__name__ = "tink.core._Lazy.Computable";
 tink_core__$Lazy_Computable.__isInterface__ = true;
 tink_core__$Lazy_Computable.prototype = {
-	__class__: tink_core__$Lazy_Computable
+	isComputed: null
+	,compute: null
+	,underlying: null
+	,__class__: tink_core__$Lazy_Computable
 };
 var tink_core__$Lazy_LazyObject = function() { };
 $hxClasses["tink.core._Lazy.LazyObject"] = tink_core__$Lazy_LazyObject;
@@ -4603,7 +5438,9 @@ tink_core__$Lazy_LazyObject.__name__ = "tink.core._Lazy.LazyObject";
 tink_core__$Lazy_LazyObject.__isInterface__ = true;
 tink_core__$Lazy_LazyObject.__interfaces__ = [tink_core__$Lazy_Computable];
 tink_core__$Lazy_LazyObject.prototype = {
-	__class__: tink_core__$Lazy_LazyObject
+	isComputed: null
+	,get: null
+	,__class__: tink_core__$Lazy_LazyObject
 };
 var tink_core__$Lazy_LazyConst = function(value) {
 	this.value = value;
@@ -4612,7 +5449,8 @@ $hxClasses["tink.core._Lazy.LazyConst"] = tink_core__$Lazy_LazyConst;
 tink_core__$Lazy_LazyConst.__name__ = "tink.core._Lazy.LazyConst";
 tink_core__$Lazy_LazyConst.__interfaces__ = [tink_core__$Lazy_LazyObject];
 tink_core__$Lazy_LazyConst.prototype = {
-	isComputed: function() {
+	value: null
+	,isComputed: function() {
 		return true;
 	}
 	,get: function() {
@@ -4632,7 +5470,8 @@ $hxClasses["tink.core._Future.SyncFuture"] = tink_core__$Future_SyncFuture;
 tink_core__$Future_SyncFuture.__name__ = "tink.core._Future.SyncFuture";
 tink_core__$Future_SyncFuture.__interfaces__ = [tink_core__$Future_FutureObject];
 tink_core__$Future_SyncFuture.prototype = {
-	getStatus: function() {
+	value: null
+	,getStatus: function() {
 		return tink_core_FutureStatus.Ready(this.value);
 	}
 	,handle: function(cb) {
@@ -4651,7 +5490,8 @@ tink_core_Future.get_status = function(this1) {
 	return this1.getStatus();
 };
 tink_core_Future._new = function(f) {
-	return new tink_core__$Future_SuspendableFuture(f);
+	var this1 = new tink_core__$Future_SuspendableFuture(f);
+	return this1;
 };
 tink_core_Future.handle = function(this1,callback) {
 	return this1.handle(callback);
@@ -4674,11 +5514,13 @@ tink_core_Future.first = function(this1,that) {
 		}
 		break;
 	case 4:
-		return that;
+		var v = that;
+		return v;
 	default:
 		switch(that.getStatus()._hx_index) {
 		case 3:
-			return that;
+			var v = that;
+			return v;
 		case 4:
 			return _g;
 		default:
@@ -4722,10 +5564,11 @@ tink_core_Future.flatMap = function(this1,next,gather) {
 	default:
 		return new tink_core__$Future_SuspendableFuture(function($yield) {
 			var inner = new tink_core_CallbackLinkRef();
-			return new tink_core__$Callback_LinkPair(this1.handle(function(v) {
+			var outer = this1.handle(function(v) {
 				var outer = next(v).handle($yield);
 				inner.link = outer;
-			}),inner);
+			});
+			return new tink_core__$Callback_LinkPair(outer,inner);
 		});
 	}
 };
@@ -4797,7 +5640,7 @@ tink_core_Future.processMany = function(a,concurrency,fn,lift) {
 	if(a.length == 0) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(lift(tink_core_Outcome.Success([]))));
 	} else {
-		return new tink_core__$Future_SuspendableFuture(function($yield) {
+		var this1 = new tink_core__$Future_SuspendableFuture(function($yield) {
 			var links = [];
 			var _g = [];
 			var _g1 = 0;
@@ -4894,6 +5737,7 @@ tink_core_Future.processMany = function(a,concurrency,fn,lift) {
 			}
 			return tink_core_CallbackLink.fromMany(links);
 		});
+		return this1;
 	}
 };
 tink_core_Future.lazy = function(l) {
@@ -4931,7 +5775,8 @@ tink_core_Future.either = function(a,b) {
 };
 tink_core_Future.and = function(a,b) {
 	return tink_core_Future.merge(a,b,function(a,b) {
-		return new tink_core_MPair(a,b);
+		var this1 = new tink_core_MPair(a,b);
+		return this1;
 	});
 };
 tink_core_Future._tryFailingFlatMap = function(f,map) {
@@ -4997,7 +5842,9 @@ $hxClasses["tink.core.FutureTrigger"] = tink_core_FutureTrigger;
 tink_core_FutureTrigger.__name__ = "tink.core.FutureTrigger";
 tink_core_FutureTrigger.__interfaces__ = [tink_core__$Future_FutureObject];
 tink_core_FutureTrigger.prototype = {
-	getStatus: function() {
+	status: null
+	,list: null
+	,getStatus: function() {
 		return this.status;
 	}
 	,handle: function(callback) {
@@ -5077,7 +5924,11 @@ $hxClasses["tink.core._Future.SuspendableFuture"] = tink_core__$Future_Suspendab
 tink_core__$Future_SuspendableFuture.__name__ = "tink.core._Future.SuspendableFuture";
 tink_core__$Future_SuspendableFuture.__interfaces__ = [tink_core__$Future_FutureObject];
 tink_core__$Future_SuspendableFuture.prototype = {
-	getStatus: function() {
+	callbacks: null
+	,status: null
+	,link: null
+	,wakeup: null
+	,getStatus: function() {
 		return this.status;
 	}
 	,trigger: function(value) {
@@ -5166,6 +6017,7 @@ tink_core_Lazy.ofConst = function(c) {
 	return new tink_core__$Lazy_LazyConst(c);
 };
 var tink_core__$Lazy_LazyFunc = function(f,from) {
+	this.busy = false;
 	this.f = f;
 	this.from = from;
 };
@@ -5173,7 +6025,11 @@ $hxClasses["tink.core._Lazy.LazyFunc"] = tink_core__$Lazy_LazyFunc;
 tink_core__$Lazy_LazyFunc.__name__ = "tink.core._Lazy.LazyFunc";
 tink_core__$Lazy_LazyFunc.__interfaces__ = [tink_core__$Lazy_LazyObject];
 tink_core__$Lazy_LazyFunc.prototype = {
-	underlying: function() {
+	f: null
+	,from: null
+	,result: null
+	,busy: null
+	,underlying: function() {
 		return this.from;
 	}
 	,isComputed: function() {
@@ -5183,8 +6039,12 @@ tink_core__$Lazy_LazyFunc.prototype = {
 		return this.result;
 	}
 	,compute: function() {
+		if(this.busy) {
+			throw haxe_Exception.thrown(new tink_core_TypedError(null,"circular lazyness",{ fileName : "tink/core/Lazy.hx", lineNumber : 86, className : "tink.core._Lazy.LazyFunc", methodName : "compute"}));
+		}
 		var _g = this.f;
 		if(_g != null) {
+			this.busy = true;
 			this.f = null;
 			var _g1 = this.from;
 			if(_g1 != null) {
@@ -5197,9 +6057,14 @@ tink_core__$Lazy_LazyFunc.prototype = {
 				}
 				stack.reverse();
 				var _g1 = 0;
-				while(_g1 < stack.length) stack[_g1++].compute();
+				while(_g1 < stack.length) {
+					var c = stack[_g1];
+					++_g1;
+					c.compute();
+				}
 			}
 			this.result = _g();
+			this.busy = false;
 		}
 	}
 	,__class__: tink_core__$Lazy_LazyFunc
@@ -5211,7 +6076,9 @@ var tink_core_NamedWith = function(name,value) {
 $hxClasses["tink.core.NamedWith"] = tink_core_NamedWith;
 tink_core_NamedWith.__name__ = "tink.core.NamedWith";
 tink_core_NamedWith.prototype = {
-	__class__: tink_core_NamedWith
+	name: null
+	,value: null
+	,__class__: tink_core_NamedWith
 };
 var tink_core_Noise = {};
 tink_core_Noise.ofAny = function(t) {
@@ -5323,7 +6190,9 @@ var tink_core_OptionIter = function(o) {
 $hxClasses["tink.core.OptionIter"] = tink_core_OptionIter;
 tink_core_OptionIter.__name__ = "tink.core.OptionIter";
 tink_core_OptionIter.prototype = {
-	hasNext: function() {
+	value: null
+	,alive: null
+	,hasNext: function() {
 		return this.alive;
 	}
 	,next: function() {
@@ -5455,7 +6324,8 @@ tink_core_OutcomeTools.flatten = function(o) {
 };
 var tink_core__$Outcome_OutcomeMapper = {};
 tink_core__$Outcome_OutcomeMapper._new = function(f) {
-	return { f : f};
+	var this1 = { f : f};
+	return this1;
 };
 tink_core__$Outcome_OutcomeMapper.apply = function(this1,o) {
 	return this1.f(o);
@@ -5489,7 +6359,8 @@ tink_core__$Outcome_OutcomeMapper.withEitherError = function(f) {
 };
 var tink_core_Pair = {};
 tink_core_Pair._new = function(a,b) {
-	return new tink_core_MPair(a,b);
+	var this1 = new tink_core_MPair(a,b);
+	return this1;
 };
 tink_core_Pair.get_a = function(this1) {
 	return this1.a;
@@ -5513,11 +6384,15 @@ var tink_core_MPair = function(a,b) {
 $hxClasses["tink.core.MPair"] = tink_core_MPair;
 tink_core_MPair.__name__ = "tink.core.MPair";
 tink_core_MPair.prototype = {
-	__class__: tink_core_MPair
+	a: null
+	,b: null
+	,__class__: tink_core_MPair
 };
 var tink_core_ProgressValue = {};
 tink_core_ProgressValue._new = function(value,total) {
-	return new tink_core_MPair(value,total);
+	var this1 = new tink_core_MPair(value,total);
+	var this2 = this1;
+	return this2;
 };
 tink_core_ProgressValue.normalize = function(this1) {
 	var o = this1.b;
@@ -5546,7 +6421,9 @@ tink_core_Progress.trigger = function() {
 tink_core_Progress.make = function(f) {
 	return new tink_core__$Progress_SuspendableProgress(function(fire) {
 		return f(function(value,total) {
-			fire(tink_core_ProgressStatus.InProgress(new tink_core_MPair(value,total)));
+			var this1 = new tink_core_MPair(value,total);
+			var this2 = this1;
+			fire(tink_core_ProgressStatus.InProgress(this2));
 		},function(result) {
 			fire(tink_core_ProgressStatus.Finished(result));
 		});
@@ -5611,15 +6488,16 @@ tink_core_Progress.next = function(this1,f) {
 };
 var tink_core__$Progress_ProgressObject = function(changed,getStatus) {
 	this.changed = changed;
-	this.progressed = new tink_core__$Signal_Suspendable(function(fire) {
+	var this1 = new tink_core__$Signal_Suspendable(function(fire) {
 		return changed.listen(function(s) {
 			if(s._hx_index == 0) {
 				fire(s.v);
 			}
 		});
 	},null);
+	this.progressed = this1;
 	this.getStatus = getStatus;
-	this.result = new tink_core__$Future_SuspendableFuture(function(fire) {
+	var this1 = new tink_core__$Future_SuspendableFuture(function(fire) {
 		var _g = getStatus();
 		if(_g._hx_index == 1) {
 			fire(_g.v);
@@ -5632,6 +6510,7 @@ var tink_core__$Progress_ProgressObject = function(changed,getStatus) {
 			});
 		}
 	});
+	this.result = this1;
 };
 $hxClasses["tink.core._Progress.ProgressObject"] = tink_core__$Progress_ProgressObject;
 tink_core__$Progress_ProgressObject.__name__ = "tink.core._Progress.ProgressObject";
@@ -5639,6 +6518,10 @@ tink_core__$Progress_ProgressObject.prototype = {
 	get_status: function() {
 		return this.getStatus();
 	}
+	,getStatus: null
+	,changed: null
+	,progressed: null
+	,result: null
 	,__class__: tink_core__$Progress_ProgressObject
 };
 var tink_core__$Progress_SuspendableProgress = function(wakeup,status) {
@@ -5649,7 +6532,7 @@ var tink_core__$Progress_SuspendableProgress = function(wakeup,status) {
 	var changed;
 	switch(status._hx_index) {
 	case 0:
-		changed = new tink_core__$Signal_Suspendable(function(fire) {
+		var this1 = new tink_core__$Signal_Suspendable(function(fire) {
 			return wakeup(function(s) {
 				status = s;
 				fire(status);
@@ -5657,6 +6540,7 @@ var tink_core__$Progress_SuspendableProgress = function(wakeup,status) {
 		},function(d) {
 			disposable = d;
 		});
+		changed = this1;
 		break;
 	case 1:
 		changed = tink_core_Signal.dead();
@@ -5690,12 +6574,16 @@ $hxClasses["tink.core.ProgressTrigger"] = tink_core_ProgressTrigger;
 tink_core_ProgressTrigger.__name__ = "tink.core.ProgressTrigger";
 tink_core_ProgressTrigger.__super__ = tink_core__$Progress_ProgressObject;
 tink_core_ProgressTrigger.prototype = $extend(tink_core__$Progress_ProgressObject.prototype,{
-	asProgress: function() {
+	_status: null
+	,_changed: null
+	,asProgress: function() {
 		return this;
 	}
 	,progress: function(v,total) {
 		if(this._status._hx_index != 1) {
-			this._changed.handlers.invoke(this._status = tink_core_ProgressStatus.InProgress(new tink_core_MPair(v,total)));
+			var this1 = new tink_core_MPair(v,total);
+			var this2 = this1;
+			this._changed.handlers.invoke(this._status = tink_core_ProgressStatus.InProgress(this2));
 		}
 	}
 	,finish: function(v) {
@@ -5763,13 +6651,15 @@ tink_core_ProgressTools.asPromise = function(p) {
 };
 var tink_core_Promise = {};
 tink_core_Promise._new = function(f) {
-	return new tink_core__$Future_SuspendableFuture(function(cb) {
+	var this1 = new tink_core__$Future_SuspendableFuture(function(cb) {
 		return f(function(v) {
 			cb(tink_core_Outcome.Success(v));
 		},function(e) {
 			cb(tink_core_Outcome.Failure(e));
 		});
 	});
+	var this2 = this1;
+	return this2;
 };
 tink_core_Promise.eager = function(this1) {
 	this1.eager();
@@ -5865,7 +6755,8 @@ tink_core_Promise.merge = function(this1,other,merger,gather) {
 };
 tink_core_Promise.and = function(a,b) {
 	return tink_core_Promise.merge(a,b,function(a,b) {
-		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(new tink_core_MPair(a,b))));
+		var this1 = new tink_core_MPair(a,b);
+		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(this1)));
 	});
 };
 tink_core_Promise.iterate = function(promises,$yield,fallback) {
@@ -5974,9 +6865,10 @@ tink_core_Promise.ofData = function(d) {
 	return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(d)));
 };
 tink_core_Promise.lazy = function(p) {
-	return new tink_core__$Future_SuspendableFuture(function(cb) {
+	var this1 = new tink_core__$Future_SuspendableFuture(function(cb) {
 		return tink_core_Lazy.get(p).handle(cb);
 	});
+	return this1;
 };
 tink_core_Promise.inParallel = function(a,concurrency) {
 	return tink_core_Promise.many(a,concurrency);
@@ -6020,7 +6912,8 @@ tink_core_Promise.lift = function(p) {
 	return p;
 };
 tink_core_Promise.trigger = function() {
-	return new tink_core_FutureTrigger();
+	var this1 = new tink_core_FutureTrigger();
+	return this1;
 };
 tink_core_Promise.resolve = function(v) {
 	return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(v)));
@@ -6073,7 +6966,8 @@ tink_core_Combiner.ofSafeSync = function(f) {
 };
 var tink_core_PromiseTrigger = {};
 tink_core_PromiseTrigger._new = function() {
-	return new tink_core_FutureTrigger();
+	var this1 = new tink_core_FutureTrigger();
+	return this1;
 };
 tink_core_PromiseTrigger.resolve = function(this1,v) {
 	return this1.trigger(tink_core_Outcome.Success(v));
@@ -6086,7 +6980,9 @@ tink_core_PromiseTrigger.asPromise = function(this1) {
 };
 var tink_core_Ref = {};
 tink_core_Ref._new = function() {
-	return new Array(1);
+	var this1 = new Array(1);
+	var this2 = this1;
+	return this2;
 };
 tink_core_Ref.get_value = function(this1) {
 	return this1[0];
@@ -6098,7 +6994,9 @@ tink_core_Ref.toString = function(this1) {
 	return "@[" + Std.string(this1[0]) + "]";
 };
 tink_core_Ref.to = function(v) {
-	var ret = new Array(1);
+	var this1 = new Array(1);
+	var this2 = this1;
+	var ret = this2;
 	ret[0] = v;
 	return ret;
 };
@@ -6111,7 +7009,8 @@ tink_core_Gather.ofBool = function(b) {
 };
 var tink_core_Signal = {};
 tink_core_Signal._new = function(f,init) {
-	return new tink_core__$Signal_Suspendable(f,init);
+	var this1 = new tink_core__$Signal_Suspendable(f,init);
+	return this1;
 };
 tink_core_Signal.handle = function(this1,handler) {
 	return this1.listen(handler);
@@ -6213,13 +7112,15 @@ tink_core_Signal.gather = function(this1) {
 	return this1;
 };
 tink_core_Signal.create = function(f) {
-	return new tink_core__$Signal_Suspendable(f,null);
+	var this1 = new tink_core__$Signal_Suspendable(f,null);
+	return this1;
 };
 tink_core_Signal.generate = function(generator,init) {
-	return new tink_core__$Signal_Suspendable(function(fire) {
+	var this1 = new tink_core__$Signal_Suspendable(function(fire) {
 		generator(fire);
 		return null;
 	},init);
+	return this1;
 };
 tink_core_Signal.trigger = function() {
 	return new tink_core_SignalTrigger();
@@ -6229,9 +7130,10 @@ tink_core_Signal.ofClassical = function(add,remove,gather) {
 		add(fire);
 		var _g = remove;
 		var a1 = fire;
-		return new tink_core_SimpleLink(function() {
+		var this1 = new tink_core_SimpleLink(function() {
 			_g(a1);
 		});
+		return this1;
 	});
 };
 tink_core_Signal.dead = function() {
@@ -6243,7 +7145,8 @@ tink_core__$Signal_SignalObject.__name__ = "tink.core._Signal.SignalObject";
 tink_core__$Signal_SignalObject.__isInterface__ = true;
 tink_core__$Signal_SignalObject.__interfaces__ = [tink_core_Disposable];
 tink_core__$Signal_SignalObject.prototype = {
-	__class__: tink_core__$Signal_SignalObject
+	listen: null
+	,__class__: tink_core__$Signal_SignalObject
 };
 var tink_core__$Signal_Disposed = function() {
 	tink_core_AlreadyDisposed.call(this);
@@ -6291,7 +7194,11 @@ tink_core__$Signal_Suspendable.over = function(s,activate) {
 	}
 };
 tink_core__$Signal_Suspendable.prototype = {
-	get_disposed: function() {
+	handlers: null
+	,activate: null
+	,init: null
+	,subscription: null
+	,get_disposed: function() {
 		return this.handlers.get_disposed();
 	}
 	,dispose: function() {
@@ -6332,6 +7239,7 @@ tink_core_SignalTrigger.prototype = {
 	get_disposed: function() {
 		return this.handlers.get_disposed();
 	}
+	,handlers: null
 	,dispose: function() {
 		this.handlers.dispose();
 	}
@@ -6372,9 +7280,84 @@ tink_core_SignalTrigger.prototype = {
 	}
 	,__class__: tink_core_SignalTrigger
 };
+var tink_domspec_ClassName = {};
+tink_domspec_ClassName._new = function(s) {
+	return s;
+};
+tink_domspec_ClassName.add = function(this1,that) {
+	var _g = that;
+	var this2 = this1 == null ? _g : _g == null ? this1 : "" + this1 + " " + _g;
+	return this2;
+};
+tink_domspec_ClassName.when = function(this1,cond) {
+	var this2 = cond ? this1 : "";
+	return this2;
+};
+tink_domspec_ClassName.ofMap = function(parts) {
+	var _g = [];
+	var c = haxe_ds_StringMap.keysIterator(parts.h);
+	while(c.hasNext()) {
+		var c1 = c.next();
+		if(parts.h[c1]) {
+			_g.push(tink_domspec_ClassName.ofString(c1));
+		}
+	}
+	return tink_domspec_ClassName.ofArray(_g);
+};
+tink_domspec_ClassName.ofArray = function(parts) {
+	var f = tink_domspec_ClassName.ofString;
+	var result = new Array(parts.length);
+	var _g = 0;
+	var _g1 = parts.length;
+	while(_g < _g1) {
+		var i = _g++;
+		result[i] = f(parts[i]);
+	}
+	return result.join(" ");
+};
+tink_domspec_ClassName.ofString = function(s) {
+	if(s == null) {
+		return null;
+	} else {
+		return StringTools.trim(s);
+	}
+};
+tink_domspec_ClassName.ofDynamicAccess = function(parts) {
+	var _g = [];
+	var _g1 = 0;
+	var _g2 = Reflect.fields(parts);
+	while(_g1 < _g2.length) {
+		var c = _g2[_g1];
+		++_g1;
+		if(parts[c]) {
+			_g.push(tink_domspec_ClassName.ofString(c));
+		}
+	}
+	return tink_domspec_ClassName.ofArray(_g);
+};
+var tink_domspec_CSSParser = function() { };
+$hxClasses["tink.domspec.CSSParser"] = tink_domspec_CSSParser;
+tink_domspec_CSSParser.__name__ = "tink.domspec.CSSParser";
+tink_domspec_CSSParser.parseString = function(s) {
+	if(tink_domspec_CSSParser.style == null) {
+		tink_domspec_CSSParser.style = window.document.createElement("div").style;
+	}
+	tink_domspec_CSSParser.style.cssText = s;
+	var ret = { };
+	var ret1 = ret;
+	var _g = 0;
+	var _g1 = tink_domspec_CSSParser.style;
+	while(_g < _g1.length) {
+		var name = _g1[_g];
+		++_g;
+		ret1[name] = tink_domspec_CSSParser.style.getPropertyValue(name);
+	}
+	return ret;
+};
 var tink_htmlstring_HtmlBuffer = {};
 tink_htmlstring_HtmlBuffer._new = function() {
-	return new tink_htmlstring_RawBuffer();
+	var this1 = new tink_htmlstring_RawBuffer();
+	return this1;
 };
 tink_htmlstring_HtmlBuffer.add = function(this1,s) {
 	this1.out += s;
@@ -6394,7 +7377,8 @@ var tink_htmlstring_RawBuffer = function() {
 $hxClasses["tink.htmlstring.RawBuffer"] = tink_htmlstring_RawBuffer;
 tink_htmlstring_RawBuffer.__name__ = "tink.htmlstring.RawBuffer";
 tink_htmlstring_RawBuffer.prototype = {
-	add: function(value) {
+	out: null
+	,add: function(value) {
 		this.out += value;
 	}
 	,addSub: function(value,start,len) {
@@ -6431,7 +7415,8 @@ $hxClasses["tink.io.Transformer"] = tink_io_Transformer;
 tink_io_Transformer.__name__ = "tink.io.Transformer";
 tink_io_Transformer.__isInterface__ = true;
 tink_io_Transformer.prototype = {
-	__class__: tink_io_Transformer
+	transform: null
+	,__class__: tink_io_Transformer
 };
 var tink_http_ChunkedEncoder = function() {
 };
@@ -6468,7 +7453,9 @@ $hxClasses["tink.io.StreamParserObject"] = tink_io_StreamParserObject;
 tink_io_StreamParserObject.__name__ = "tink.io.StreamParserObject";
 tink_io_StreamParserObject.__isInterface__ = true;
 tink_io_StreamParserObject.prototype = {
-	__class__: tink_io_StreamParserObject
+	progress: null
+	,eof: null
+	,__class__: tink_io_StreamParserObject
 };
 var tink_http_ChunkedParser = function() {
 	this.reset();
@@ -6477,7 +7464,8 @@ $hxClasses["tink.http.ChunkedParser"] = tink_http_ChunkedParser;
 tink_http_ChunkedParser.__name__ = "tink.http.ChunkedParser";
 tink_http_ChunkedParser.__interfaces__ = [tink_io_StreamParserObject];
 tink_http_ChunkedParser.prototype = {
-	reset: function() {
+	chunkSize: null
+	,reset: function() {
 		this.chunkSize = -1;
 	}
 	,progress: function(cursor) {
@@ -6516,228 +7504,18 @@ tink_http_ChunkedParser.prototype = {
 	}
 	,__class__: tink_http_ChunkedParser
 };
-var tink_http_Client = {};
-tink_http_Client.fetch = function(url,options) {
-	return tink_http_Fetch.fetch(url,options);
-};
-tink_http_Client.augment = function(this1,pipeline) {
-	return tink_http__$Client_CustomClient.create(this1,pipeline.before,pipeline.after);
-};
-var tink_http_ClientObject = function() { };
-$hxClasses["tink.http.ClientObject"] = tink_http_ClientObject;
-tink_http_ClientObject.__name__ = "tink.http.ClientObject";
-tink_http_ClientObject.__isInterface__ = true;
-tink_http_ClientObject.prototype = {
-	__class__: tink_http_ClientObject
-};
-var tink_http__$Client_CustomClient = function(preprocessors,postprocessors,real) {
-	this.preprocessors = preprocessors;
-	this.postprocessors = postprocessors;
-	this.real = real;
-};
-$hxClasses["tink.http._Client.CustomClient"] = tink_http__$Client_CustomClient;
-tink_http__$Client_CustomClient.__name__ = "tink.http._Client.CustomClient";
-tink_http__$Client_CustomClient.__interfaces__ = [tink_http_ClientObject];
-tink_http__$Client_CustomClient.concat = function(a,b) {
-	if(a == null) {
-		return b;
-	} else if(b == null) {
-		return a;
-	} else {
-		return a.concat(b);
-	}
-};
-tink_http__$Client_CustomClient.create = function(c,preprocessors,postprocessors) {
-	var _g = ((c) instanceof tink_http__$Client_CustomClient) ? c : null;
-	if(_g == null) {
-		return new tink_http__$Client_CustomClient(preprocessors,postprocessors,c);
-	} else {
-		var v = _g;
-		return new tink_http__$Client_CustomClient(tink_http__$Client_CustomClient.concat(preprocessors,v.preprocessors),tink_http__$Client_CustomClient.concat(v.postprocessors,postprocessors),v.real);
-	}
-};
-tink_http__$Client_CustomClient.prototype = {
-	pipe: function(value,transforms,index) {
-		if(index == null) {
-			index = 0;
-		}
-		if(transforms != null && index < transforms.length) {
-			var _g = $bind(this,this.pipe);
-			var transforms1 = transforms;
-			var index1 = index + 1;
-			var tmp = function(value) {
-				return _g(value,transforms1,index1);
-			};
-			return tink_core_Promise.next(transforms[index](value),tmp);
-		} else {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(value)));
-		}
-	}
-	,request: function(req) {
-		var _gthis = this;
-		return tink_core_Promise.next(this.pipe(req,this.preprocessors),function(req) {
-			var tmp = _gthis.real.request(req);
-			var _g = $bind(_gthis,_gthis.pipe);
-			var transforms;
-			if(_gthis.postprocessors == null) {
-				transforms = null;
-			} else {
-				var _g1 = [];
-				var _g2 = 0;
-				var _g3 = _gthis.postprocessors;
-				while(_g2 < _g3.length) _g1.push(_g3[_g2++](req));
-				transforms = _g1;
-			}
-			return tink_core_Promise.next(tmp,function(value) {
-				return _g(value,transforms);
-			});
-		});
-	}
-	,__class__: tink_http__$Client_CustomClient
-};
 var tink_http_Container = function() { };
 $hxClasses["tink.http.Container"] = tink_http_Container;
 tink_http_Container.__name__ = "tink.http.Container";
 tink_http_Container.__isInterface__ = true;
 tink_http_Container.prototype = {
-	__class__: tink_http_Container
+	run: null
+	,__class__: tink_http_Container
 };
 var tink_http_ContainerResult = $hxEnums["tink.http.ContainerResult"] = { __ename__ : "tink.http.ContainerResult", __constructs__ : ["Running","Failed","Shutdown"]
 	,Running: ($_=function(running) { return {_hx_index:0,running:running,__enum__:"tink.http.ContainerResult",toString:$estr}; },$_.__params__ = ["running"],$_)
 	,Failed: ($_=function(e) { return {_hx_index:1,e:e,__enum__:"tink.http.ContainerResult",toString:$estr}; },$_.__params__ = ["e"],$_)
 	,Shutdown: {_hx_index:2,__enum__:"tink.http.ContainerResult",toString:$estr}
-};
-var tink_http_Fetch = function() { };
-$hxClasses["tink.http.Fetch"] = tink_http_Fetch;
-tink_http_Fetch.__name__ = "tink.http.Fetch";
-tink_http_Fetch.fetch = function(url,options) {
-	return tink_core_Future.async(function(cb) {
-		var method = "GET";
-		var headers = null;
-		var body = tink_io_Source.EMPTY;
-		var type = tink_http_ClientType.Default;
-		var followRedirect = true;
-		if(options != null) {
-			if(options.method != null) {
-				method = options.method;
-			}
-			if(options.headers != null) {
-				headers = options.headers;
-			}
-			if(options.body != null) {
-				body = options.body;
-			}
-			if(options.client != null) {
-				type = options.client;
-			}
-			if(options.followRedirect == false) {
-				followRedirect = false;
-			}
-		}
-		var client = tink_http_Fetch.getClient(type,url.scheme == "https");
-		if(options != null && options.augment != null) {
-			var pipeline = options.augment;
-			client = tink_http__$Client_CustomClient.create(client,pipeline.before,pipeline.after);
-		}
-		client.request(new tink_http_OutgoingRequest(new tink_http_OutgoingRequestHeader(method,url,null,headers),body)).handle(function(res) {
-			switch(res._hx_index) {
-			case 0:
-				var _g = res.data;
-				var _g1 = _g.header.statusCode;
-				switch(_g1) {
-				case 301:case 302:case 303:case 307:case 308:
-					var code = _g1;
-					if(followRedirect) {
-						tink_core_Promise.next(new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(_g.header.byName("location".toLowerCase()))),function(location) {
-							var this1 = tink_Url.resolve(url,tink_Url.fromString(location));
-							var this2;
-							if(code == 303) {
-								var __o0 = options;
-								var __tink_tmp0 = { method : "GET"};
-								var _g = __o0.headers;
-								if(_g != null) {
-									__tink_tmp0.headers = _g;
-								}
-								var _g = __o0.followRedirect;
-								if(_g != null) {
-									__tink_tmp0.followRedirect = _g;
-								}
-								var _g = __o0.client;
-								if(_g != null) {
-									__tink_tmp0.client = _g;
-								}
-								var _g = __o0.body;
-								if(_g != null) {
-									__tink_tmp0.body = _g;
-								}
-								var _g = __o0.augment;
-								if(_g != null) {
-									__tink_tmp0.augment = _g;
-								}
-								this2 = __tink_tmp0;
-							} else {
-								this2 = options;
-							}
-							return tink_http_Fetch.fetch(this1,this2);
-						}).handle(cb);
-					} else {
-						cb(tink_core_Outcome.Success(_g));
-					}
-					break;
-				default:
-					cb(tink_core_Outcome.Success(_g));
-				}
-				break;
-			case 1:
-				cb(tink_core_Outcome.Failure(res.failure));
-				break;
-			}
-		});
-	});
-};
-tink_http_Fetch.getClient = function(type,secure) {
-	var cache = secure ? tink_http_Fetch.sclient : tink_http_Fetch.client;
-	if(!cache.exists(type)) {
-		var c;
-		switch(type._hx_index) {
-		case 0:
-			c = secure ? new tink_http_clients_SecureNodeClient() : new tink_http_clients_NodeClient();
-			break;
-		case 1:
-			c = new tink_http_clients_LocalContainerClient(type.container);
-			break;
-		case 2:
-			c = secure ? new tink_http_clients_SecureCurlClient() : new tink_http_clients_CurlClient();
-			break;
-		case 3:
-			c = secure ? new tink_http_clients_StdClient() : new tink_http_clients_StdClient();
-			break;
-		case 4:
-			c = type.v;
-			break;
-		}
-		cache.set(type,c);
-	}
-	return cache.get(type);
-};
-var tink_http_ClientType = $hxEnums["tink.http.ClientType"] = { __ename__ : "tink.http.ClientType", __constructs__ : ["Default","Local","Curl","StdLib","Custom"]
-	,Default: {_hx_index:0,__enum__:"tink.http.ClientType",toString:$estr}
-	,Local: ($_=function(container) { return {_hx_index:1,container:container,__enum__:"tink.http.ClientType",toString:$estr}; },$_.__params__ = ["container"],$_)
-	,Curl: {_hx_index:2,__enum__:"tink.http.ClientType",toString:$estr}
-	,StdLib: {_hx_index:3,__enum__:"tink.http.ClientType",toString:$estr}
-	,Custom: ($_=function(v) { return {_hx_index:4,v:v,__enum__:"tink.http.ClientType",toString:$estr}; },$_.__params__ = ["v"],$_)
-};
-var tink_http_FetchResponse = {};
-tink_http_FetchResponse.all = function(this1) {
-	return tink_core_Promise.next(this1,function(r) {
-		return tink_core_Promise.next(tink_io_RealSourceTools.all(r.body),function(chunk) {
-			if(r.header.statusCode >= 400) {
-				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(tink_core_TypedError.withData(r.header.statusCode,r.header.reason,chunk.toString(),{ fileName : "tink/http/Fetch.hx", lineNumber : 138, className : "tink.http._Fetch.FetchResponse_Impl_", methodName : "all"}))));
-			} else {
-				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(new tink_http_Message(r.header,chunk))));
-			}
-		});
-	});
 };
 var tink_http_Handler = {};
 tink_http_Handler.applyMiddleware = function(this1,m) {
@@ -6764,7 +7542,8 @@ tink_http_Handler.toNodeHandler = function(this1,options) {
 			while(_g1_current < _this.length) {
 				var h = _this[_g1_current++];
 				if(!Object.prototype.hasOwnProperty.call(headers_h,h.name)) {
-					headers_h[h.name] = [];
+					var v = [];
+					headers_h[h.name] = v;
 				}
 				headers_h[h.name].push(h.value);
 			}
@@ -6785,7 +7564,8 @@ $hxClasses["tink.http.HandlerObject"] = tink_http_HandlerObject;
 tink_http_HandlerObject.__name__ = "tink.http.HandlerObject";
 tink_http_HandlerObject.__isInterface__ = true;
 tink_http_HandlerObject.prototype = {
-	__class__: tink_http_HandlerObject
+	process: null
+	,__class__: tink_http_HandlerObject
 };
 var tink_http_SimpleHandler = function(f) {
 	this.f = f;
@@ -6794,7 +7574,8 @@ $hxClasses["tink.http.SimpleHandler"] = tink_http_SimpleHandler;
 tink_http_SimpleHandler.__name__ = "tink.http.SimpleHandler";
 tink_http_SimpleHandler.__interfaces__ = [tink_http_HandlerObject];
 tink_http_SimpleHandler.prototype = {
-	process: function(req) {
+	f: null
+	,process: function(req) {
 		return this.f(req);
 	}
 	,__class__: tink_http_SimpleHandler
@@ -6838,6 +7619,10 @@ tink_http_ContentType.prototype = {
 	get_fullType: function() {
 		return "" + this.type + "/" + this.subtype;
 	}
+	,type: null
+	,subtype: null
+	,extensions: null
+	,raw: null
 	,toString: function() {
 		return this.raw;
 	}
@@ -6849,7 +7634,8 @@ var tink_http_Header = function(fields) {
 $hxClasses["tink.http.Header"] = tink_http_Header;
 tink_http_Header.__name__ = "tink.http.Header";
 tink_http_Header.prototype = {
-	get: function(name) {
+	fields: null
+	,get: function(name) {
 		var _g = [];
 		var _g1 = 0;
 		var _g2 = this.fields;
@@ -6927,7 +7713,11 @@ tink_http_Header.prototype = {
 		var _g = [];
 		var _g1 = 0;
 		var _g2 = this.fields;
-		while(_g1 < _g2.length) _g.push(_g2[_g1++].toString());
+		while(_g1 < _g2.length) {
+			var f = _g2[_g1];
+			++_g1;
+			_g.push(f.toString());
+		}
 		return _g.join("\r\n") + "\r\n" + "\r\n";
 	}
 	,headerNotFound: function(name) {
@@ -7105,7 +7895,12 @@ $hxClasses["tink.http.HeaderParser"] = tink_http_HeaderParser;
 tink_http_HeaderParser.__name__ = "tink.http.HeaderParser";
 tink_http_HeaderParser.__super__ = tink_io_BytewiseParser;
 tink_http_HeaderParser.prototype = $extend(tink_io_BytewiseParser.prototype,{
-	read: function(c) {
+	header: null
+	,fields: null
+	,buf: null
+	,last: null
+	,makeHeader: null
+	,read: function(c) {
 		var _g = this.last;
 		switch(c) {
 		case -1:
@@ -7185,7 +7980,9 @@ var tink_http_Message = function(header,body) {
 $hxClasses["tink.http.Message"] = tink_http_Message;
 tink_http_Message.__name__ = "tink.http.Message";
 tink_http_Message.prototype = {
-	__class__: tink_http_Message
+	header: null
+	,body: null
+	,__class__: tink_http_Message
 };
 var tink_http_Method = {};
 tink_http_Method.ofString = function(s,fallback) {
@@ -7218,7 +8015,8 @@ $hxClasses["tink.http.MiddlewareObject"] = tink_http_MiddlewareObject;
 tink_http_MiddlewareObject.__name__ = "tink.http.MiddlewareObject";
 tink_http_MiddlewareObject.__isInterface__ = true;
 tink_http_MiddlewareObject.prototype = {
-	__class__: tink_http_MiddlewareObject
+	apply: null
+	,__class__: tink_http_MiddlewareObject
 };
 var tink_http_SimpleMiddleware = function(f) {
 	this.f = f;
@@ -7227,7 +8025,8 @@ $hxClasses["tink.http.SimpleMiddleware"] = tink_http_SimpleMiddleware;
 tink_http_SimpleMiddleware.__name__ = "tink.http.SimpleMiddleware";
 tink_http_SimpleMiddleware.__interfaces__ = [tink_http_MiddlewareObject];
 tink_http_SimpleMiddleware.prototype = {
-	apply: function(handler) {
+	f: null
+	,apply: function(handler) {
 		return this.f(handler);
 	}
 	,__class__: tink_http_SimpleMiddleware
@@ -7245,7 +8044,10 @@ $hxClasses["tink.http.RequestHeader"] = tink_http_RequestHeader;
 tink_http_RequestHeader.__name__ = "tink.http.RequestHeader";
 tink_http_RequestHeader.__super__ = tink_http_Header;
 tink_http_RequestHeader.prototype = $extend(tink_http_Header.prototype,{
-	concat: function(fields) {
+	method: null
+	,url: null
+	,protocol: null
+	,concat: function(fields) {
 		return new tink_http_RequestHeader(this.method,this.url,this.protocol,this.fields.concat(fields));
 	}
 	,toString: function() {
@@ -7285,13 +8087,16 @@ tink_http_IncomingRequestHeader.fromIncomingMessage = function(req) {
 };
 tink_http_IncomingRequestHeader.__super__ = tink_http_RequestHeader;
 tink_http_IncomingRequestHeader.prototype = $extend(tink_http_RequestHeader.prototype,{
-	getCookies: function() {
+	cookies: null
+	,getCookies: function() {
 		if(this.cookies == null) {
 			var _g = new haxe_ds_StringMap();
 			var _g1 = 0;
 			var _g2 = this.get("cookie".toLowerCase());
 			while(_g1 < _g2.length) {
-				var entry = new tink_url__$Query_QueryStringParser(_g2[_g1++],";","=",0);
+				var header = _g2[_g1];
+				++_g1;
+				var entry = new tink_url__$Query_QueryStringParser(header,";","=",0);
 				while(entry.hasNext()) {
 					var entry1 = entry.next();
 					var key = entry1.name;
@@ -7371,7 +8176,10 @@ tink_http_OutgoingRequestHeader.extractAuth = function(url) {
 		var url1 = url.scheme;
 		var _g = [];
 		var host = $getIterator(url.hosts);
-		while(host.hasNext()) _g.push(host.next());
+		while(host.hasNext()) {
+			var host1 = host.next();
+			_g.push(host1);
+		}
 		return haxe_ds_Option.Some({ headers : tmp, url : tink_Url.make({ scheme : url1, hosts : _g, path : url.path, query : url.query})});
 	}
 };
@@ -7441,7 +8249,8 @@ tink_http_IncomingRequest.parse = function(clientIp,source) {
 };
 tink_http_IncomingRequest.__super__ = tink_http_Message;
 tink_http_IncomingRequest.prototype = $extend(tink_http_Message.prototype,{
-	__class__: tink_http_IncomingRequest
+	clientIp: null
+	,__class__: tink_http_IncomingRequest
 });
 var tink_http_IncomingRequestBody = $hxEnums["tink.http.IncomingRequestBody"] = { __ename__ : "tink.http.IncomingRequestBody", __constructs__ : ["Plain","Parsed"]
 	,Plain: ($_=function(source) { return {_hx_index:0,source:source,__enum__:"tink.http.IncomingRequestBody",toString:$estr}; },$_.__params__ = ["source"],$_)
@@ -7457,13 +8266,16 @@ tink_http_ResponseHeader._new = function(statusCode,reason,fields,protocol) {
 	if(protocol == null) {
 		protocol = "HTTP/1.1";
 	}
-	return new tink_http_ResponseHeaderBase(statusCode,reason,fields,protocol);
+	var this1 = new tink_http_ResponseHeaderBase(statusCode,reason,fields,protocol);
+	return this1;
 };
 tink_http_ResponseHeader.fromStatusCode = function(code) {
-	return new tink_http_ResponseHeaderBase(code,null,null,"HTTP/1.1");
+	var this1 = new tink_http_ResponseHeaderBase(code,null,null,"HTTP/1.1");
+	return this1;
 };
 tink_http_ResponseHeader.fromHeaderFields = function(fields) {
-	return new tink_http_ResponseHeaderBase(200,null,fields,"HTTP/1.1");
+	var this1 = new tink_http_ResponseHeaderBase(200,null,fields,"HTTP/1.1");
+	return this1;
 };
 tink_http_ResponseHeader.parser = function() {
 	return tink_http_ResponseHeaderBase.parser();
@@ -7473,7 +8285,14 @@ var tink_http_ResponseHeaderBase = function(statusCode,reason,fields,protocol) {
 		protocol = "HTTP/1.1";
 	}
 	this.statusCode = statusCode;
-	this.reason = reason == null ? httpstatus_HttpStatusMessage.fromCode(statusCode) : reason;
+	var tmp;
+	if(reason == null) {
+		var this1 = httpstatus_HttpStatusMessage.fromCode(statusCode);
+		tmp = this1;
+	} else {
+		tmp = reason;
+	}
+	this.reason = tmp;
 	this.protocol = protocol;
 	tink_http_Header.call(this,fields);
 };
@@ -7489,7 +8308,8 @@ tink_http_ResponseHeaderBase.parser = function() {
 			if(protocol == null) {
 				protocol = "HTTP/1.1";
 			}
-			return tink_core_Outcome.Success(new tink_http_ResponseHeaderBase(statusCode,reason,headers,protocol));
+			var this1 = new tink_http_ResponseHeaderBase(statusCode,reason,headers,protocol);
+			return tink_core_Outcome.Success(this1);
 		} else {
 			return tink_core_Outcome.Failure(new tink_core_TypedError(422,"Invalid HTTP response header",{ fileName : "tink/http/Response.hx", lineNumber : 56, className : "tink.http.ResponseHeaderBase", methodName : "parser"}));
 		}
@@ -7497,7 +8317,10 @@ tink_http_ResponseHeaderBase.parser = function() {
 };
 tink_http_ResponseHeaderBase.__super__ = tink_http_Header;
 tink_http_ResponseHeaderBase.prototype = $extend(tink_http_Header.prototype,{
-	concat: function(fields) {
+	statusCode: null
+	,reason: null
+	,protocol: null
+	,concat: function(fields) {
 		var statusCode = this.statusCode;
 		var reason = this.reason;
 		var fields1 = this.fields.concat(fields);
@@ -7505,7 +8328,8 @@ tink_http_ResponseHeaderBase.prototype = $extend(tink_http_Header.prototype,{
 		if(protocol == null) {
 			protocol = "HTTP/1.1";
 		}
-		return new tink_http_ResponseHeaderBase(statusCode,reason,fields1,protocol);
+		var this1 = new tink_http_ResponseHeaderBase(statusCode,reason,fields1,protocol);
+		return this1;
 	}
 	,toString: function() {
 		return "" + this.protocol + " " + this.statusCode + " " + this.reason + "\r\n" + tink_http_Header.prototype.toString.call(this);
@@ -7523,13 +8347,17 @@ tink_http__$Response_OutgoingResponseData.prototype = $extend(tink_http_Message.
 });
 var tink_http_OutgoingResponse = {};
 tink_http_OutgoingResponse._new = function(header,body) {
-	return new tink_http__$Response_OutgoingResponseData(header,body);
+	var this1 = new tink_http__$Response_OutgoingResponseData(header,body);
+	return this1;
 };
 tink_http_OutgoingResponse.blob = function(code,chunk,contentType,headers) {
 	if(code == null) {
 		code = 200;
 	}
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(code,httpstatus_HttpStatusMessage.fromCode(code),[new tink_http_HeaderField("Content-Type".toLowerCase(),contentType),new tink_http_HeaderField("Content-Length".toLowerCase(),Std.string(chunk.getLength()))].concat(headers == null ? [] : headers),"HTTP/1.1"),new tink_streams_Single(new tink_core__$Lazy_LazyConst(chunk)));
+	var this1 = httpstatus_HttpStatusMessage.fromCode(code);
+	var this2 = new tink_http_ResponseHeaderBase(code,this1,[new tink_http_HeaderField("Content-Type".toLowerCase(),contentType),new tink_http_HeaderField("Content-Length".toLowerCase(),Std.string(chunk.getLength()))].concat(headers == null ? [] : headers),"HTTP/1.1");
+	var this1 = new tink_http__$Response_OutgoingResponseData(this2,new tink_streams_Single(new tink_core__$Lazy_LazyConst(chunk)));
+	return this1;
 };
 tink_http_OutgoingResponse.chunked = function(contentType,headers,source) {
 };
@@ -7544,7 +8372,9 @@ tink_http_OutgoingResponse.reportError = function(e) {
 	if(code < 100 || code > 999) {
 		code = 500;
 	}
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(code,httpstatus_HttpStatusMessage.fromCode(code),[new tink_http_HeaderField("Content-Type".toLowerCase(),"application/json")],"HTTP/1.1"),new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(JSON.stringify({ error : e.message, details : e.data}))))));
+	var this1 = new tink_http_ResponseHeaderBase(code,httpstatus_HttpStatusMessage.fromCode(code),[new tink_http_HeaderField("Content-Type".toLowerCase(),"application/json")],"HTTP/1.1");
+	var this2 = new tink_http__$Response_OutgoingResponseData(this1,new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(JSON.stringify({ error : e.message, details : e.data}))))));
+	return this2;
 };
 var tink_http_IncomingResponse = function(header,body) {
 	tink_http_Message.call(this,header,body);
@@ -7561,7 +8391,8 @@ tink_http_IncomingResponse.readAll = function(res) {
 	});
 };
 tink_http_IncomingResponse.reportError = function(e) {
-	return new tink_http_IncomingResponse(new tink_http_ResponseHeaderBase(e.code,httpstatus_HttpStatusMessage.fromCode(e.code),[new tink_http_HeaderField("Content-Type".toLowerCase(),"application/json")],"HTTP/1.1"),new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(JSON.stringify({ error : e.message, details : e.data}))))));
+	var this1 = new tink_http_ResponseHeaderBase(e.code,httpstatus_HttpStatusMessage.fromCode(e.code),[new tink_http_HeaderField("Content-Type".toLowerCase(),"application/json")],"HTTP/1.1");
+	return new tink_http_IncomingResponse(this1,new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(JSON.stringify({ error : e.message, details : e.data}))))));
 };
 tink_http_IncomingResponse.__super__ = tink_http_Message;
 tink_http_IncomingResponse.prototype = $extend(tink_http_Message.prototype,{
@@ -7576,7 +8407,8 @@ tink_http_UploadedFile.ofBlob = function(name,type,data) {
 	return { fileName : name, mimeType : type, size : data.length, read : function() {
 		return new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(data)));
 	}, saveTo : function(path) {
-		var dest = tink_io_nodejs_NodejsSink.wrap("File sink " + path,js_node_Fs.createWriteStream(path));
+		var name = "File sink " + path;
+		var dest = tink_io_nodejs_NodejsSink.wrap(name,js_node_Fs.createWriteStream(path));
 		return tink_core_Future.map(tink_io_Source.pipeTo(new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(data))),dest,{ end : true}),function(r) {
 			switch(r._hx_index) {
 			case 0:
@@ -7588,263 +8420,6 @@ tink_http_UploadedFile.ofBlob = function(name,type,data) {
 			}
 		});
 	}};
-};
-var tink_http_clients_CurlClient = function(curl) {
-	this.protocol = "http";
-	if(curl != null) {
-		this.curl = curl;
-	}
-};
-$hxClasses["tink.http.clients.CurlClient"] = tink_http_clients_CurlClient;
-tink_http_clients_CurlClient.__name__ = "tink.http.clients.CurlClient";
-tink_http_clients_CurlClient.__interfaces__ = [tink_http_ClientObject];
-tink_http_clients_CurlClient.prototype = {
-	request: function(req) {
-		var args = [];
-		args.push("-isS");
-		args.push("-X");
-		args.push(req.header.method);
-		switch(req.header.protocol) {
-		case "HTTP/1.0":
-			args.push("--http1.0");
-			break;
-		case "HTTP/1.1":
-			args.push("--http1.1");
-			break;
-		case "HTTP/2":
-			args.push("--http2");
-			break;
-		default:
-		}
-		var _this = req.header.fields;
-		var _g1_current = 0;
-		while(_g1_current < _this.length) {
-			var header = _this[_g1_current++];
-			args.push("-H");
-			args.push("" + header.name + ": " + header.value);
-		}
-		var url = req.header.url;
-		args.push(url.scheme != null ? tink_Url.toString(url) : this.protocol + ":" + (url == null ? "null" : tink_Url.toString(url)));
-		return tink_core_Promise.next(tink_io_RealSourceTools.parse(this.curl(args,req.body),tink_http_ResponseHeaderBase.parser()),function(p) {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(new tink_http_IncomingResponse(p.a,p.b))));
-		});
-	}
-	,curl: function(args,body) {
-		args.push("--data-binary");
-		args.push("@-");
-		var $process = js_node_ChildProcess.spawn("curl",args);
-		tink_io_Source.pipeTo(body,tink_io_nodejs_NodejsSink.wrap("stdin",$process.stdin),{ end : true}).eager();
-		return tink_io_Source.ofPromised(tink_core_Future.flatMap(tink_core_Future.async(function(cb) {
-			$process.once("exit",function(code,signal) {
-				cb(code);
-			});
-		}),function(code) {
-			if(code == 0) {
-				var options = null;
-				options = { };
-				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_io_nodejs_NodejsSource.wrap("stdout",$process.stdout,options.chunkSize,options.onEnd))));
-			} else {
-				var v = code;
-				var options = null;
-				options = { };
-				return tink_core_Promise.next(tink_io_RealSourceTools.all(tink_io_nodejs_NodejsSource.wrap("stderr",$process.stderr,options.chunkSize,options.onEnd)),function(stderr) {
-					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(v,stderr.toString(),{ fileName : "tink/http/clients/CurlClient.hx", lineNumber : 61, className : "tink.http.clients.CurlClient", methodName : "curl"}))));
-				});
-			}
-		}));
-	}
-	,__class__: tink_http_clients_CurlClient
-};
-var tink_http_clients_LocalContainerClient = function(container) {
-	this.container = container;
-};
-$hxClasses["tink.http.clients.LocalContainerClient"] = tink_http_clients_LocalContainerClient;
-tink_http_clients_LocalContainerClient.__name__ = "tink.http.clients.LocalContainerClient";
-tink_http_clients_LocalContainerClient.__interfaces__ = [tink_http_ClientObject];
-tink_http_clients_LocalContainerClient.prototype = {
-	request: function(req) {
-		var this1 = req.header.url;
-		return tink_core_Future.flatMap(this.container.serve(new tink_http_IncomingRequest("127.0.0.1",new tink_http_IncomingRequestHeader(req.header.method,tink_Url.fromString(this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),"HTTP/1.1",req.header.fields),tink_http_IncomingRequestBody.Plain(req.body))),function(res) {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(new tink_http_IncomingResponse(res.header,res.body))));
-		});
-	}
-	,__class__: tink_http_clients_LocalContainerClient
-};
-var tink_http_clients_NodeClient = function() {
-};
-$hxClasses["tink.http.clients.NodeClient"] = tink_http_clients_NodeClient;
-tink_http_clients_NodeClient.__name__ = "tink.http.clients.NodeClient";
-tink_http_clients_NodeClient.__interfaces__ = [tink_http_ClientObject];
-tink_http_clients_NodeClient.prototype = {
-	request: function(req) {
-		var req1 = req.header.method;
-		var this1 = req.header.url;
-		var options = this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query);
-		var options1 = tink_url_Host.get_name(req.header.url.hosts[0]);
-		var options2 = tink_url_Host.get_port(req.header.url.hosts[0]);
-		var map = { };
-		var _this = req.header.fields;
-		var _g_current = 0;
-		while(_g_current < _this.length) {
-			var h = _this[_g_current++];
-			map[h.name] = h.value;
-		}
-		return this.nodeRequest(js_node_Http,{ method : req1, path : options, host : options1, port : options2, headers : map, agent : false},req);
-	}
-	,nodeRequest: function(agent,options,req) {
-		return tink_core_Future.async(function(cb) {
-			var fwd = agent.request(options,function(msg) {
-				var cb1 = cb;
-				var statusCode = msg.statusCode;
-				var reason = msg.statusMessage;
-				var _g = [];
-				var _g1 = 0;
-				var _g2 = msg.rawHeaders.length >> 1;
-				while(_g1 < _g2) {
-					var i = _g1++;
-					_g.push(new tink_http_HeaderField(msg.rawHeaders[2 * i].toLowerCase(),msg.rawHeaders[2 * i + 1]));
-				}
-				var options = null;
-				options = { };
-				cb1(tink_core_Outcome.Success(new tink_http_IncomingResponse(new tink_http_ResponseHeaderBase(statusCode,reason,_g,"HTTP/1.1"),tink_io_nodejs_NodejsSource.wrap("Response from " + (req.header.url == null ? "null" : tink_Url.toString(req.header.url)),msg,options.chunkSize,options.onEnd))));
-			});
-			var fail = function(e) {
-				cb(tink_core_Outcome.Failure(e));
-			};
-			fwd.on("error",function(e) {
-				fail(tink_core_TypedError.withData(null,e.message,e,{ fileName : "tink/http/clients/NodeClient.hx", lineNumber : 58, className : "tink.http.clients.NodeClient", methodName : "nodeRequest"}));
-			});
-			tink_io_Source.pipeTo(req.body,tink_io_nodejs_NodejsSink.wrap("Request to " + (req.header.url == null ? "null" : tink_Url.toString(req.header.url)),fwd)).handle(function(res) {
-				fwd.end();
-				switch(res._hx_index) {
-				case 0:
-					break;
-				case 1:
-					fail(new tink_core_TypedError(502,"Gateway Error",{ fileName : "tink/http/clients/NodeClient.hx", lineNumber : 67, className : "tink.http.clients.NodeClient", methodName : "nodeRequest"}));
-					break;
-				case 2:
-					fail(res.e);
-					break;
-				}
-			});
-		});
-	}
-	,__class__: tink_http_clients_NodeClient
-};
-var tink_http_clients_SecureCurlClient = function(curl) {
-	tink_http_clients_CurlClient.call(this,curl);
-	this.protocol = "https";
-};
-$hxClasses["tink.http.clients.SecureCurlClient"] = tink_http_clients_SecureCurlClient;
-tink_http_clients_SecureCurlClient.__name__ = "tink.http.clients.SecureCurlClient";
-tink_http_clients_SecureCurlClient.__super__ = tink_http_clients_CurlClient;
-tink_http_clients_SecureCurlClient.prototype = $extend(tink_http_clients_CurlClient.prototype,{
-	__class__: tink_http_clients_SecureCurlClient
-});
-var tink_http_clients_SecureNodeClient = function() {
-	tink_http_clients_NodeClient.call(this);
-};
-$hxClasses["tink.http.clients.SecureNodeClient"] = tink_http_clients_SecureNodeClient;
-tink_http_clients_SecureNodeClient.__name__ = "tink.http.clients.SecureNodeClient";
-tink_http_clients_SecureNodeClient.__super__ = tink_http_clients_NodeClient;
-tink_http_clients_SecureNodeClient.prototype = $extend(tink_http_clients_NodeClient.prototype,{
-	request: function(req) {
-		var req1 = req.header.method;
-		var this1 = req.header.url;
-		var options = this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query);
-		var options1 = tink_url_Host.get_name(req.header.url.hosts[0]);
-		var options2 = tink_url_Host.get_port(req.header.url.hosts[0]);
-		var map = { };
-		var _this = req.header.fields;
-		var _g_current = 0;
-		while(_g_current < _this.length) {
-			var h = _this[_g_current++];
-			map[h.name] = h.value;
-		}
-		return this.nodeRequest(js_node_Https,{ method : req1, path : options, host : options1, port : options2, headers : map, agent : false},req);
-	}
-	,__class__: tink_http_clients_SecureNodeClient
-});
-var tink_http_clients_StdClient = function(worker) {
-	this.worker = tink_io_Worker.ensure(worker);
-};
-$hxClasses["tink.http.clients.StdClient"] = tink_http_clients_StdClient;
-tink_http_clients_StdClient.__name__ = "tink.http.clients.StdClient";
-tink_http_clients_StdClient.__interfaces__ = [tink_http_ClientObject];
-tink_http_clients_StdClient.prototype = {
-	request: function(req) {
-		var _gthis = this;
-		return tink_core_Future.async(function(cb) {
-			var r = new haxe_http_HttpNodeJs(tink_Url.toString(req.header.url));
-			var send = function(post) {
-				var code = 200;
-				r.onStatus = function(c) {
-					code = c;
-				};
-				var headers = function() {
-					return [];
-				};
-				r.onError = function(msg) {
-					if(code == 200) {
-						code = 500;
-					}
-					tink_io_Worker.work(_gthis.worker,new tink_core__$Lazy_LazyConst(true)).handle(function() {
-						cb(tink_core_Outcome.Failure(new tink_core_TypedError(code,msg,{ fileName : "tink/http/clients/StdClient.hx", lineNumber : 44, className : "tink.http.clients.StdClient", methodName : "request"})));
-					});
-				};
-				r.onData = function(data) {
-					tink_io_Worker.work(_gthis.worker,new tink_core__$Lazy_LazyConst(true)).handle(function() {
-						var cb1 = cb;
-						var fields = headers();
-						cb1(tink_core_Outcome.Success(new tink_http_IncomingResponse(new tink_http_ResponseHeaderBase(code,"OK",fields,"HTTP/1.1"),new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(data)))))));
-					});
-				};
-				tink_io_Worker.work(_gthis.worker,new tink_core__$Lazy_LazyFunc(function() {
-					r.request(post);
-				}));
-			};
-			var _this = req.header.fields;
-			var _g_current = 0;
-			while(_g_current < _this.length) {
-				var h = _this[_g_current++];
-				r.setHeader(h.name,h.value);
-			}
-			switch(req.header.method) {
-			case "GET":case "HEAD":case "OPTIONS":
-				send(false);
-				break;
-			default:
-				tink_io_IdealSourceTools.all(req.body).handle(function(bytes) {
-					r.setPostData(bytes.toString());
-					send(true);
-				});
-			}
-		});
-	}
-	,__class__: tink_http_clients_StdClient
-};
-var tink_http_containers_LocalContainer = function() {
-};
-$hxClasses["tink.http.containers.LocalContainer"] = tink_http_containers_LocalContainer;
-tink_http_containers_LocalContainer.__name__ = "tink.http.containers.LocalContainer";
-tink_http_containers_LocalContainer.__interfaces__ = [tink_http_Container];
-tink_http_containers_LocalContainer.prototype = {
-	run: function(handler) {
-		var _gthis = this;
-		this.handler = handler;
-		this.running = true;
-		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_http_ContainerResult.Running({ failures : new tink_core_SignalTrigger(), shutdown : function(hard) {
-			_gthis.running = false;
-			return tink_core_Future.map(new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(true)),tink_core_Outcome.Success);
-		}})));
-	}
-	,serve: function(req) {
-		if(!this.running) {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(503,"Server stopped",[],"HTTP/1.1"),tink_io_Source.EMPTY)));
-		}
-		return this.handler.process(req);
-	}
-	,__class__: tink_http_containers_LocalContainer
 };
 var tink_http_containers_NodeContainer = function(kind,opt) {
 	this.kind = kind;
@@ -7868,7 +8443,9 @@ tink_http_containers_NodeContainer.toUpgradeHandler = function(handler) {
 	};
 };
 tink_http_containers_NodeContainer.prototype = {
-	run: function(handler) {
+	kind: null
+	,upgradable: null
+	,run: function(handler) {
 		var _gthis = this;
 		return tink_core_Future.async(function(cb) {
 			var failures = tink_core_Signal.trigger();
@@ -7916,7 +8493,7 @@ tink_http_containers_NodeContainer.prototype = {
 			var onListen = function() {
 				var onListen = tink_http_ContainerResult.Running({ shutdown : function(hard) {
 					if(hard) {
-						haxe_Log.trace("Warning: hard shutdown not implemented",{ fileName : "tink/http/containers/NodeContainer.hx", lineNumber : 82, className : "tink.http.containers.NodeContainer", methodName : "run"});
+						console.log("tink/http/containers/NodeContainer.hx:82:","Warning: hard shutdown not implemented");
 					}
 					return tink_core_Future.map(tink_core_Future.async(function(cb) {
 						server.close(function() {
@@ -7972,7 +8549,10 @@ $hxClasses["tink.http.middleware.Static"] = tink_http_middleware_Static;
 tink_http_middleware_Static.__name__ = "tink.http.middleware.Static";
 tink_http_middleware_Static.__interfaces__ = [tink_http_MiddlewareObject];
 tink_http_middleware_Static.prototype = {
-	apply: function(handler) {
+	root: null
+	,prefix: null
+	,options: null
+	,apply: function(handler) {
 		return new tink_http_middleware_StaticHandler(this.root,this.prefix,this.options,handler);
 	}
 	,__class__: tink_http_middleware_Static
@@ -7988,7 +8568,12 @@ $hxClasses["tink.http.middleware.StaticHandler"] = tink_http_middleware_StaticHa
 tink_http_middleware_StaticHandler.__name__ = "tink.http.middleware.StaticHandler";
 tink_http_middleware_StaticHandler.__interfaces__ = [tink_http_HandlerObject];
 tink_http_middleware_StaticHandler.prototype = {
-	process: function(req) {
+	root: null
+	,prefix: null
+	,options: null
+	,handler: null
+	,notFound: null
+	,process: function(req) {
 		var _gthis = this;
 		var path = req.header.url.path;
 		if(req.header.method == "GET" && StringTools.startsWith(path,this.prefix)) {
@@ -8003,10 +8588,7 @@ tink_http_middleware_StaticHandler.prototype = {
 			if(staticPath.indexOf("\x00") > -1) {
 				return this.handler.process(req);
 			}
-			var f = function(_) {
-				return _gthis.handler.process(req);
-			};
-			return tink_core_Future.flatMap(tink_core_Promise.next(tink_core_Promise.next(tink_core_Future.flatMap(asys_FileSystem.exists(staticPath),function(exists) {
+			var result = tink_core_Promise.next(tink_core_Promise.next(tink_core_Future.flatMap(asys_FileSystem.exists(staticPath),function(exists) {
 				if(!exists) {
 					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(_gthis.notFound)));
 				} else {
@@ -8023,12 +8605,18 @@ tink_http_middleware_StaticHandler.prototype = {
 				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(_gthis.partial(req.header,stat,tink_io_RealSourceTools.idealize(asys_io_File.readStream(staticPath),function(_) {
 					return tink_io_Source.EMPTY;
 				}),mime,haxe_io_Path.withoutDirectory(staticPath)))));
-			}),function(o) {
+			});
+			var f = function(_) {
+				return _gthis.handler.process(req);
+			};
+			return tink_core_Future.flatMap(result,function(o) {
 				switch(o._hx_index) {
 				case 0:
-					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(o.data));
+					var d = o.data;
+					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(d));
 				case 1:
-					return f(o.failure);
+					var e = o.failure;
+					return f(e);
 				}
 			});
 		}
@@ -8047,7 +8635,9 @@ tink_http_middleware_StaticHandler.prototype = {
 			if(_g1.length == 2) {
 				if(_g1[0] == "bytes") {
 					var res = function(pos,len) {
-						return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(206,"Partial Content",headers.concat([new tink_http_HeaderField("Content-Range".toLowerCase(),"bytes " + pos + "-" + (pos + len - 1) + "/" + stat.size),new tink_http_HeaderField("Content-Length".toLowerCase(),tink_http_HeaderValue.ofInt(len))]),"HTTP/1.1"),tink_io_Source.limit(tink_io_Source.skip(source,pos),len));
+						var this1 = new tink_http_ResponseHeaderBase(206,"Partial Content",headers.concat([new tink_http_HeaderField("Content-Range".toLowerCase(),"bytes " + pos + "-" + (pos + len - 1) + "/" + stat.size),new tink_http_HeaderField("Content-Length".toLowerCase(),tink_http_HeaderValue.ofInt(len))]),"HTTP/1.1");
+						var this2 = new tink_http__$Response_OutgoingResponseData(this1,tink_io_Source.limit(tink_io_Source.skip(source,pos),len));
+						return this2;
 					};
 					var _g = _g1[1].split("-");
 					if(_g.length == 2) {
@@ -8091,7 +8681,9 @@ tink_http_middleware_StaticHandler.prototype = {
 		case 1:
 			break;
 		}
-		return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(200,"OK",headers.concat([new tink_http_HeaderField("Content-Length".toLowerCase(),tink_http_HeaderValue.ofInt(stat.size))]),"HTTP/1.1"),source);
+		var this1 = new tink_http_ResponseHeaderBase(200,"OK",headers.concat([new tink_http_HeaderField("Content-Length".toLowerCase(),tink_http_HeaderValue.ofInt(stat.size))]),"HTTP/1.1");
+		var this2 = new tink_http__$Response_OutgoingResponseData(this1,source);
+		return this2;
 	}
 	,__class__: tink_http_middleware_StaticHandler
 };
@@ -8136,7 +8728,8 @@ tink_io_PipeResultTools.toResult = function(c,result,buffered) {
 		if(buffered == null) {
 			return s;
 		} else {
-			return s.prepend(new tink_streams_Single(new tink_core__$Lazy_LazyConst(buffered)));
+			var v = buffered;
+			return s.prepend(new tink_streams_Single(new tink_core__$Lazy_LazyConst(v)));
 		}
 	};
 	switch(c._hx_index) {
@@ -8155,7 +8748,9 @@ $hxClasses["tink.io.SinkObject"] = tink_io_SinkObject;
 tink_io_SinkObject.__name__ = "tink.io.SinkObject";
 tink_io_SinkObject.__isInterface__ = true;
 tink_io_SinkObject.prototype = {
-	__class__: tink_io_SinkObject
+	get_sealed: null
+	,consume: null
+	,__class__: tink_io_SinkObject
 };
 var tink_io_SinkBase = function() { };
 $hxClasses["tink.io.SinkBase"] = tink_io_SinkBase;
@@ -8245,7 +8840,8 @@ $hxClasses["tink.io._Sink.FutureSink"] = tink_io__$Sink_FutureSink;
 tink_io__$Sink_FutureSink.__name__ = "tink.io._Sink.FutureSink";
 tink_io__$Sink_FutureSink.__super__ = tink_io_SinkBase;
 tink_io__$Sink_FutureSink.prototype = $extend(tink_io_SinkBase.prototype,{
-	consume: function(source,options) {
+	f: null
+	,consume: function(source,options) {
 		return tink_core_Future.flatMap(this.f,function(sink) {
 			return sink.consume(source,options);
 		});
@@ -8259,7 +8855,8 @@ $hxClasses["tink.io._Sink.ErrorSink"] = tink_io__$Sink_ErrorSink;
 tink_io__$Sink_ErrorSink.__name__ = "tink.io._Sink.ErrorSink";
 tink_io__$Sink_ErrorSink.__super__ = tink_io_SinkBase;
 tink_io__$Sink_ErrorSink.prototype = $extend(tink_io_SinkBase.prototype,{
-	get_sealed: function() {
+	error: null
+	,get_sealed: function() {
 		return false;
 	}
 	,consume: function(source,options) {
@@ -8272,7 +8869,20 @@ $hxClasses["tink.streams.StreamObject"] = tink_streams_StreamObject;
 tink_streams_StreamObject.__name__ = "tink.streams.StreamObject";
 tink_streams_StreamObject.__isInterface__ = true;
 tink_streams_StreamObject.prototype = {
-	__class__: tink_streams_StreamObject
+	get_depleted: null
+	,next: null
+	,regroup: null
+	,map: null
+	,filter: null
+	,retain: null
+	,idealize: null
+	,append: null
+	,prepend: null
+	,blend: null
+	,decompose: null
+	,forEach: null
+	,reduce: null
+	,__class__: tink_streams_StreamObject
 };
 var tink_streams_StreamBase = function() {
 	this.retainCount = 0;
@@ -8284,6 +8894,7 @@ tink_streams_StreamBase.prototype = {
 	get_depleted: function() {
 		return false;
 	}
+	,retainCount: null
 	,retain: function() {
 		var _gthis = this;
 		this.retainCount++;
@@ -8422,7 +9033,8 @@ tink_io_Source.toNodeStream = function(this1) {
 			var native1 = native;
 			var b = chunk.toBytes();
 			var data = b.b;
-			if(native1.write(js_node_buffer_Buffer.from(data.buffer,data.byteOffset,b.length))) {
+			var ok = native1.write(js_node_buffer_Buffer.from(data.buffer,data.byteOffset,b.length));
+			if(ok) {
 				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_Handled.Resume));
 			} else {
 				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_Handled.Finish));
@@ -8452,10 +9064,12 @@ tink_io_Source.toNodeStream = function(this1) {
 	return native;
 };
 tink_io_Source.ofJsFile = function(name,file,options) {
-	return new tink_io_js_BlobSource(name,file,0,options == null || options.chunkSize == null ? 16777216 : options.chunkSize);
+	var chunkSize = options == null || options.chunkSize == null ? 16777216 : options.chunkSize;
+	return new tink_io_js_BlobSource(name,file,0,chunkSize);
 };
 tink_io_Source.ofJsBlob = function(name,blob,options) {
-	return new tink_io_js_BlobSource(name,blob,0,options == null || options.chunkSize == null ? 16777216 : options.chunkSize);
+	var chunkSize = options == null || options.chunkSize == null ? 16777216 : options.chunkSize;
+	return new tink_io_js_BlobSource(name,blob,0,chunkSize);
 };
 tink_io_Source.ofInput = function(name,input,options) {
 	if(options == null) {
@@ -8492,9 +9106,9 @@ tink_io_Source.skip = function(this1,len) {
 			return tink_streams_RegroupResult.Converted(tink_streams_Stream.single(chunk));
 		}
 		var length = chunk.getLength();
-		var out = len < length ? tink_streams_Stream.single(chunk.slice(len,length)) : tink_streams_Empty.inst;
+		var out = tink_streams_RegroupResult.Converted(len < length ? tink_streams_Stream.single(chunk.slice(len,length)) : tink_streams_Empty.inst);
 		len -= length;
-		return tink_streams_RegroupResult.Converted(out);
+		return out;
 	}));
 };
 tink_io_Source.limit = function(this1,len) {
@@ -8572,7 +9186,8 @@ tink_io_RealSourceTools.parse = function(s,p) {
 	return tink_core_Future.map(tink_io_StreamParser.parse(s,p),function(r) {
 		switch(r._hx_index) {
 		case 0:
-			return tink_core_Outcome.Success(new tink_core_MPair(r.data,r.rest));
+			var this1 = new tink_core_MPair(r.data,r.rest);
+			return tink_core_Outcome.Success(this1);
 		case 1:
 			return tink_core_Outcome.Failure(r.e);
 		case 2:
@@ -8619,7 +9234,8 @@ tink_io_IdealSourceTools.parse = function(s,p) {
 	return tink_core_Future.map(tink_io_StreamParser.parse(s,p),function(r) {
 		switch(r._hx_index) {
 		case 0:
-			return tink_core_Outcome.Success(new tink_core_MPair(r.data,r.rest));
+			var this1 = new tink_core_MPair(r.data,r.rest);
+			return tink_core_Outcome.Success(this1);
 		case 1:
 			return tink_core_Outcome.Failure(r.e);
 		}
@@ -8730,10 +9346,11 @@ tink_io_StreamParser.doParse = function(source,p,consume,finish) {
 };
 tink_io_StreamParser.parse = function(s,p) {
 	var res = null;
-	return tink_io_StreamParser.doParse(s,p,function(r) {
+	var onResult = function(r) {
 		res = r;
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst({ resume : false}));
-	},function() {
+	};
+	return tink_io_StreamParser.doParse(s,p,onResult,function() {
 		return res;
 	});
 };
@@ -8769,7 +9386,9 @@ $hxClasses["tink.io.Splitter"] = tink_io_Splitter;
 tink_io_Splitter.__name__ = "tink.io.Splitter";
 tink_io_Splitter.__super__ = tink_io_BytewiseParser;
 tink_io_Splitter.prototype = $extend(tink_io_BytewiseParser.prototype,{
-	read: function(char) {
+	delim: null
+	,buf: null
+	,read: function(char) {
 		if(char == -1) {
 			return tink_io_ParseStep.Done(haxe_ds_Option.None);
 		}
@@ -8806,7 +9425,8 @@ $hxClasses["tink.io.SimpleBytewiseParser"] = tink_io_SimpleBytewiseParser;
 tink_io_SimpleBytewiseParser.__name__ = "tink.io.SimpleBytewiseParser";
 tink_io_SimpleBytewiseParser.__super__ = tink_io_BytewiseParser;
 tink_io_SimpleBytewiseParser.prototype = $extend(tink_io_BytewiseParser.prototype,{
-	read: function(char) {
+	_read: null
+	,read: function(char) {
 		return this._read(char);
 	}
 	,__class__: tink_io_SimpleBytewiseParser
@@ -8816,7 +9436,8 @@ $hxClasses["tink.io.WorkerObject"] = tink_io_WorkerObject;
 tink_io_WorkerObject.__name__ = "tink.io.WorkerObject";
 tink_io_WorkerObject.__isInterface__ = true;
 tink_io_WorkerObject.prototype = {
-	__class__: tink_io_WorkerObject
+	work: null
+	,__class__: tink_io_WorkerObject
 };
 var tink_io__$Worker_EagerWorker = function() {
 };
@@ -8854,7 +9475,8 @@ tink_streams_Generator.stream = function(step) {
 };
 tink_streams_Generator.__super__ = tink_streams_StreamBase;
 tink_streams_Generator.prototype = $extend(tink_streams_StreamBase.prototype,{
-	next: function() {
+	upcoming: null
+	,next: function() {
 		return this.upcoming;
 	}
 	,forEach: function(handler) {
@@ -8922,7 +9544,8 @@ tink_io_js_BlobSource.wrap = function(name,blob,chunkSize) {
 };
 tink_io_js_BlobSource.__super__ = tink_streams_Generator;
 tink_io_js_BlobSource.prototype = $extend(tink_streams_Generator.prototype,{
-	__class__: tink_io_js_BlobSource
+	name: null
+	,__class__: tink_io_js_BlobSource
 });
 var tink_io_nodejs_NodejsSink = function(target) {
 	this.target = target;
@@ -8934,7 +9557,8 @@ tink_io_nodejs_NodejsSink.wrap = function(name,native) {
 };
 tink_io_nodejs_NodejsSink.__super__ = tink_io_SinkBase;
 tink_io_nodejs_NodejsSink.prototype = $extend(tink_io_SinkBase.prototype,{
-	consume: function(source,options) {
+	target: null
+	,consume: function(source,options) {
 		var _gthis = this;
 		var ret = source.forEach(tink_streams_Handler.ofUnknown(function(c) {
 			return tink_core_Future.map(_gthis.target.write(c),function(w) {
@@ -9012,7 +9636,11 @@ var tink_io_nodejs_WrappedReadable = function(name,native,chunkSize,onEnd) {
 $hxClasses["tink.io.nodejs.WrappedReadable"] = tink_io_nodejs_WrappedReadable;
 tink_io_nodejs_WrappedReadable.__name__ = "tink.io.nodejs.WrappedReadable";
 tink_io_nodejs_WrappedReadable.prototype = {
-	read: function() {
+	native: null
+	,name: null
+	,end: null
+	,chunkSize: null
+	,read: function() {
 		var _gthis = this;
 		return tink_core_Future.first(tink_core_Future.async(function(cb) {
 			var attempt = null;
@@ -9056,7 +9684,10 @@ var tink_io_nodejs_WrappedWritable = function(name,native) {
 $hxClasses["tink.io.nodejs.WrappedWritable"] = tink_io_nodejs_WrappedWritable;
 tink_io_nodejs_WrappedWritable.__name__ = "tink.io.nodejs.WrappedWritable";
 tink_io_nodejs_WrappedWritable.prototype = {
-	end: function() {
+	ended: null
+	,name: null
+	,native: null
+	,end: function() {
 		var didEnd = false;
 		var this1 = this.ended.handle(function() {
 			didEnd = true;
@@ -9163,7 +9794,10 @@ $hxClasses["tink.io.std.OutputSink"] = tink_io_std_OutputSink;
 tink_io_std_OutputSink.__name__ = "tink.io.std.OutputSink";
 tink_io_std_OutputSink.__super__ = tink_io_SinkBase;
 tink_io_std_OutputSink.prototype = $extend(tink_io_SinkBase.prototype,{
-	consume: function(source,options) {
+	name: null
+	,target: null
+	,worker: null
+	,consume: function(source,options) {
 		var _gthis = this;
 		var rest = tink_Chunk.EMPTY;
 		var ret = source.forEach(tink_streams_Handler.ofUnknown(function(c) {
@@ -9190,7 +9824,8 @@ tink_io_std_OutputSink.prototype = $extend(tink_io_SinkBase.prototype,{
 										return tink_core_Outcome.Failure(tink_core_TypedError.withData(null,"Error writing to " + _gthis.name,e,{ fileName : "tink/io/std/OutputSink.hx", lineNumber : 40, className : "tink.io.std.OutputSink", methodName : "consume"}));
 									}
 								} else if(((_g1) instanceof tink_core_TypedError)) {
-									return tink_core_Outcome.Failure(_g1);
+									var e = _g1;
+									return tink_core_Outcome.Failure(e);
 								} else {
 									return tink_core_Outcome.Failure(tink_core_TypedError.withData(null,"Error writing to " + _gthis.name,_g1,{ fileName : "tink/io/std/OutputSink.hx", lineNumber : 46, className : "tink.io.std.OutputSink", methodName : "consume"}));
 								}
@@ -9235,6 +9870,10 @@ tink_io_std_OutputSink.prototype = $extend(tink_io_SinkBase.prototype,{
 	}
 	,__class__: tink_io_std_OutputSink
 });
+var tink_json_Char = {};
+tink_json_Char.toString = function(this1) {
+	return String.fromCodePoint(this1);
+};
 var tink_json_Representation = {};
 tink_json_Representation.get = function(this1) {
 	return this1;
@@ -9245,6 +9884,211 @@ tink_json_Representation._new = function(v) {
 tink_json_Representation.of = function(v) {
 	return v;
 };
+var tink_json_Value = $hxEnums["tink.json.Value"] = { __ename__ : "tink.json.Value", __constructs__ : ["VNumber","VString","VNull","VBool","VArray","VObject"]
+	,VNumber: ($_=function(f) { return {_hx_index:0,f:f,__enum__:"tink.json.Value",toString:$estr}; },$_.__params__ = ["f"],$_)
+	,VString: ($_=function(s) { return {_hx_index:1,s:s,__enum__:"tink.json.Value",toString:$estr}; },$_.__params__ = ["s"],$_)
+	,VNull: {_hx_index:2,__enum__:"tink.json.Value",toString:$estr}
+	,VBool: ($_=function(b) { return {_hx_index:3,b:b,__enum__:"tink.json.Value",toString:$estr}; },$_.__params__ = ["b"],$_)
+	,VArray: ($_=function(a) { return {_hx_index:4,a:a,__enum__:"tink.json.Value",toString:$estr}; },$_.__params__ = ["a"],$_)
+	,VObject: ($_=function(a) { return {_hx_index:5,a:a,__enum__:"tink.json.Value",toString:$estr}; },$_.__params__ = ["a"],$_)
+};
+var tink_json_Writer = function() { };
+$hxClasses["tink.json.Writer"] = tink_json_Writer;
+tink_json_Writer.__name__ = "tink.json.Writer";
+var tink_json_BasicWriter = function() {
+	this.plugins = new tink_core_Annex(this);
+};
+$hxClasses["tink.json.BasicWriter"] = tink_json_BasicWriter;
+tink_json_BasicWriter.__name__ = "tink.json.BasicWriter";
+tink_json_BasicWriter.prototype = {
+	plugins: null
+	,buf: null
+	,init: function() {
+		this.buf = "";
+	}
+	,output: function(s) {
+		this.buf += s;
+	}
+	,char: function(c) {
+		this.buf += String.fromCodePoint(c);
+	}
+	,writeInt: function(v) {
+		this.buf += v == null ? "null" : "" + v;
+	}
+	,writeFloat: function(v) {
+		this.buf += v == null ? "null" : "" + v;
+	}
+	,writeBool: function(b) {
+		this.buf += b ? "true" : "false";
+	}
+	,writeString: function(s) {
+		var s1 = JSON.stringify(s);
+		this.buf += s1;
+	}
+	,writeDynamic: function(value) {
+		var s = JSON.stringify(value);
+		this.buf += s;
+	}
+	,writeValue: function(value) {
+		var _gthis = this;
+		switch(value._hx_index) {
+		case 0:
+			var f = value.f;
+			this.buf += f == null ? "null" : "" + f;
+			break;
+		case 1:
+			var s = value.s;
+			var s1 = JSON.stringify(s);
+			this.buf += s1;
+			break;
+		case 2:
+			this.buf += "null";
+			break;
+		case 3:
+			var b = value.b;
+			this.buf += b ? "true" : "false";
+			break;
+		case 4:
+			var _g = value.a;
+			if(_g.length == 0) {
+				this.buf += "[]";
+			} else {
+				var a = _g;
+				this.buf += String.fromCodePoint(91);
+				this.writeValue(a[0]);
+				var _g = 1;
+				var _g1 = a.length;
+				while(_g < _g1) {
+					var i = _g++;
+					this.buf += String.fromCodePoint(44);
+					this.writeValue(a[i]);
+				}
+				this.buf += String.fromCodePoint(93);
+			}
+			break;
+		case 5:
+			var _g = value.a;
+			if(_g.length == 0) {
+				this.buf += "{}";
+			} else {
+				var a = _g;
+				this.buf += String.fromCodePoint(123);
+				var p = a[0];
+				var s = JSON.stringify(p.name);
+				_gthis.buf += s;
+				_gthis.buf += String.fromCodePoint(58);
+				_gthis.writeValue(p.value);
+				var _g = 1;
+				var _g1 = a.length;
+				while(_g < _g1) {
+					var i = _g++;
+					this.buf += String.fromCodePoint(44);
+					var p = a[i];
+					var s = JSON.stringify(p.name);
+					_gthis.buf += s;
+					_gthis.buf += String.fromCodePoint(58);
+					_gthis.writeValue(p.value);
+				}
+				this.buf += String.fromCodePoint(125);
+			}
+			break;
+		}
+	}
+	,expandScientificNotation: function(v) {
+		var _g = v.toLowerCase().split("e");
+		switch(_g.length) {
+		case 1:
+			return _g[0];
+		case 2:
+			var _g1 = _g[1];
+			var _g2 = _g[0].split(".");
+			switch(_g2.length) {
+			case 1:
+				return _g2[0] + StringTools.rpad("","0",Std.parseInt(_g1));
+			case 2:
+				return _g2[0] + StringTools.rpad(_g2[1],"0",Std.parseInt(_g1));
+			default:
+				throw haxe_Exception.thrown("Invalid value");
+			}
+			break;
+		default:
+			throw haxe_Exception.thrown("Invalid value");
+		}
+	}
+	,__class__: tink_json_BasicWriter
+};
+var tink_json__$Writer_StringBuf = {};
+tink_json__$Writer_StringBuf._new = function() {
+	return "";
+};
+tink_json__$Writer_StringBuf.addChar = function(this1,c) {
+	this1 += String.fromCodePoint(c);
+};
+tink_json__$Writer_StringBuf.add = function(this1,s) {
+	this1 += s;
+};
+var tink_json__$Writer_StdWriter = function() { };
+$hxClasses["tink.json._Writer.StdWriter"] = tink_json__$Writer_StdWriter;
+tink_json__$Writer_StdWriter.__name__ = "tink.json._Writer.StdWriter";
+tink_json__$Writer_StdWriter.stringify = function(v) {
+	return haxe_format_JsonPrinter.print(v);
+};
+var tink_json_Writer2 = function() {
+	tink_json_BasicWriter.call(this);
+};
+$hxClasses["tink.json.Writer2"] = tink_json_Writer2;
+tink_json_Writer2.__name__ = "tink.json.Writer2";
+tink_json_Writer2.__super__ = tink_json_BasicWriter;
+tink_json_Writer2.prototype = $extend(tink_json_BasicWriter.prototype,{
+	process0: function(value) {
+		var __first = true;
+		this.buf += String.fromCodePoint(123);
+		var value1 = value.hip;
+		if(__first) {
+			__first = false;
+		} else {
+			this.buf += String.fromCodePoint(44);
+		}
+		this.buf += "\"hip\":";
+		var s1 = JSON.stringify(value1);
+		this.buf += s1;
+		this.buf += String.fromCodePoint(125);
+	}
+	,write: function(value) {
+		this.init();
+		this.process0(value);
+		return this.buf.toString();
+	}
+	,__class__: tink_json_Writer2
+});
+var tink_json_Writer3 = function() {
+	tink_json_BasicWriter.call(this);
+};
+$hxClasses["tink.json.Writer3"] = tink_json_Writer3;
+tink_json_Writer3.__name__ = "tink.json.Writer3";
+tink_json_Writer3.__super__ = tink_json_BasicWriter;
+tink_json_Writer3.prototype = $extend(tink_json_BasicWriter.prototype,{
+	process0: function(value) {
+		var __first = true;
+		this.buf += String.fromCodePoint(123);
+		var value1 = value.msg;
+		if(__first) {
+			__first = false;
+		} else {
+			this.buf += String.fromCodePoint(44);
+		}
+		this.buf += "\"msg\":";
+		var s1 = JSON.stringify(value1);
+		this.buf += s1;
+		this.buf += String.fromCodePoint(125);
+	}
+	,write: function(value) {
+		this.init();
+		this.process0(value);
+		return this.buf.toString();
+	}
+	,__class__: tink_json_Writer3
+});
 var tink_macro_DirectType = function() { };
 $hxClasses["tink.macro.DirectType"] = tink_macro_DirectType;
 tink_macro_DirectType.__name__ = "tink.macro.DirectType";
@@ -9257,6 +10101,870 @@ tink_querystring_Pairs.portionsOfUrl = function(u) {
 };
 tink_querystring_Pairs.ofIterable = function(i) {
 	return $getIterator(i);
+};
+var tink_state_Measurement = {};
+tink_state_Measurement.get_value = function(this1) {
+	return this1.a;
+};
+tink_state_Measurement.get_becameInvalid = function(this1) {
+	return this1.b;
+};
+tink_state_Measurement._new = function(value,becameInvalid) {
+	var this1 = new tink_core_MPair(value,becameInvalid);
+	var this2 = this1;
+	return this2;
+};
+var tink_state_Observable = {};
+tink_state_Observable.get_value = function(this1) {
+	return tink_state_Observable.measure(this1).a;
+};
+tink_state_Observable._new = function(get,changed) {
+	var this1 = tink_state_Observable.create(function() {
+		var this1 = new tink_core_MPair(get(),tink_core_Signal.nextTime(changed));
+		var this2 = this1;
+		return this2;
+	});
+	return this1;
+};
+tink_state_Observable.combine = function(this1,that,f) {
+	return new tink_state__$Observable_SimpleObservable(function() {
+		var p = tink_state_Observable.measure(this1);
+		var q = tink_state_Observable.measure(that);
+		var this2 = new tink_core_MPair(f(p.a,q.a),tink_core_Future.first(p.b,q.b));
+		var this3 = this2;
+		return this3;
+	});
+};
+tink_state_Observable.nextTime = function(this1,options,check) {
+	return tink_state_Observable.getNext(this1,options,function(v) {
+		if(check(v)) {
+			return haxe_ds_Option.Some(v);
+		} else {
+			return haxe_ds_Option.None;
+		}
+	});
+};
+tink_state_Observable.getNext = function(this1,options,select) {
+	var ret = new tink_core_FutureTrigger();
+	var waiting = options != null && options.butNotNow;
+	var link = tink_state_Observable.bind(this1,{ direct : options != null && options.hires},function(value) {
+		var out = select(value);
+		if(waiting) {
+			waiting = out != haxe_ds_Option.None;
+		} else {
+			switch(out._hx_index) {
+			case 0:
+				ret.trigger(out.v);
+				break;
+			case 1:
+				break;
+			}
+		}
+	});
+	var _e = link;
+	var tmp = function() {
+		if(_e != null) {
+			_e.cancel();
+		}
+	};
+	ret.handle(tmp);
+	return ret;
+};
+tink_state_Observable.join = function(this1,that) {
+	var lastA = null;
+	return tink_state_Observable.combine(this1,that,function(a,b) {
+		var ret = lastA == a ? b : a;
+		lastA = a;
+		return ret;
+	});
+};
+tink_state_Observable.map = function(this1,f) {
+	return tink_state_Observable.create(function() {
+		var m = tink_state_Observable.measure(this1);
+		var this2 = new tink_core_MPair(f(m.a),m.b);
+		var this3 = this2;
+		return this3;
+	});
+};
+tink_state_Observable.combineAsync = function(this1,that,f) {
+	return tink_state_Observable.mapAsync(tink_state_Observable.combine(this1,that,f),tink_state_Transform.plain(function(x) {
+		return x;
+	}));
+};
+tink_state_Observable.mapAsync = function(this1,f) {
+	return tink_state_Observable.flatten(tink_state_Observable.map(tink_state_Observable.map(this1,f),tink_state_Transform.plain(tink_state_Observable.ofPromise)));
+};
+tink_state_Observable.measure = function(this1) {
+	var before = tink_state_Observable.stack.first();
+	tink_state_Observable.stack.push(this1);
+	var p = this1.poll();
+	var _g = ((before) instanceof tink_state__$Observable_AutoObservable) ? before : null;
+	if(_g != null) {
+		var v = _g;
+		v.subscribe(this1,p);
+	}
+	tink_state_Observable.stack.pop();
+	return p;
+};
+tink_state_Observable.switchSync = function(this1,cases,dfault) {
+	return new tink_state__$Observable_SimpleObservable(function() {
+		var p = tink_state_Observable.measure(this1);
+		var _g = 0;
+		while(_g < cases.length) {
+			var c = cases[_g];
+			++_g;
+			if(c.when(p.a)) {
+				dfault = c.then;
+				break;
+			}
+		}
+		var p2 = tink_state_Observable.measure(tink_core_Lazy.get(dfault));
+		var this2 = new tink_core_MPair(p2.a,tink_core_Future.first(p.b,p2.b));
+		var this3 = this2;
+		return this3;
+	});
+};
+tink_state_Observable.bind = function(this1,options,cb) {
+	var cb1;
+	if(options == null) {
+		cb1 = cb;
+	} else {
+		var _g = options.comparator;
+		if(_g == null) {
+			cb1 = cb;
+		} else {
+			var equal = _g;
+			var isFirst = true;
+			var last = null;
+			cb1 = function(data) {
+				if(isFirst) {
+					isFirst = false;
+					tink_core_Callback.invoke(cb,data);
+				} else if(!equal(last,data)) {
+					tink_core_Callback.invoke(cb,data);
+				}
+				last = data;
+			};
+		}
+	}
+	if(options == null) {
+		var scheduled = false;
+		var active = true;
+		var updated = null;
+		var link = null;
+		var update = function() {
+			if(active) {
+				var next = tink_state_Observable.measure(this1);
+				tink_core_Callback.invoke(cb1,next.a);
+				scheduled = false;
+				link = next.b.handle(updated);
+			}
+		};
+		var doSchedule = function() {
+			if(scheduled) {
+				return;
+			}
+			scheduled = true;
+			tink_state_Observable.schedule(update);
+		};
+		updated = doSchedule;
+		doSchedule();
+		var this2 = new tink_core_SimpleLink(function() {
+			if(active) {
+				active = false;
+				if(link != null) {
+					link.cancel();
+				}
+			}
+		});
+		return this2;
+	} else {
+		var _g = options.direct;
+		if(_g == null) {
+			var scheduled1 = false;
+			var active1 = true;
+			var updated1 = null;
+			var link1 = null;
+			var update1 = function() {
+				if(active1) {
+					var next = tink_state_Observable.measure(this1);
+					tink_core_Callback.invoke(cb1,next.a);
+					scheduled1 = false;
+					link1 = next.b.handle(updated1);
+				}
+			};
+			var doSchedule = function() {
+				if(scheduled1) {
+					return;
+				}
+				scheduled1 = true;
+				tink_state_Observable.schedule(update1);
+			};
+			updated1 = doSchedule;
+			doSchedule();
+			var this2 = new tink_core_SimpleLink(function() {
+				if(active1) {
+					active1 = false;
+					if(link1 != null) {
+						link1.cancel();
+					}
+				}
+			});
+			return this2;
+		} else if(_g == false) {
+			var scheduled2 = false;
+			var active2 = true;
+			var updated2 = null;
+			var link2 = null;
+			var update2 = function() {
+				if(active2) {
+					var next = tink_state_Observable.measure(this1);
+					tink_core_Callback.invoke(cb1,next.a);
+					scheduled2 = false;
+					link2 = next.b.handle(updated2);
+				}
+			};
+			var doSchedule = function() {
+				if(scheduled2) {
+					return;
+				}
+				scheduled2 = true;
+				tink_state_Observable.schedule(update2);
+			};
+			updated2 = doSchedule;
+			doSchedule();
+			var this2 = new tink_core_SimpleLink(function() {
+				if(active2) {
+					active2 = false;
+					if(link2 != null) {
+						link2.cancel();
+					}
+				}
+			});
+			return this2;
+		} else {
+			var link3 = null;
+			var update3 = null;
+			update3 = function(_) {
+				var next = tink_state_Observable.measure(this1);
+				tink_core_Callback.invoke(cb1,next.a);
+				link3 = next.b.handle(update3);
+			};
+			update3(null);
+			var this2 = new tink_core_SimpleLink(function() {
+				if(link3 != null) {
+					link3.cancel();
+				}
+			});
+			return this2;
+		}
+	}
+};
+tink_state_Observable.schedule = function(f) {
+	var _g = tink_state_Observable.scheduled;
+	if(_g == null) {
+		f();
+	} else {
+		_g.push(f);
+		tink_state_Observable.scheduleUpdate();
+	}
+};
+tink_state_Observable.scheduleUpdate = function() {
+	if(!tink_state_Observable.isScheduled) {
+		tink_state_Observable.isScheduled = true;
+		if(tink_state_Observable.hasRAF) {
+			window.requestAnimationFrame(function(_) {
+				tink_state_Observable.scheduledRun();
+			});
+		} else {
+			tink_core_Callback.defer(tink_state_Observable.scheduledRun);
+		}
+	}
+};
+tink_state_Observable.scheduledRun = function() {
+	tink_state_Observable.isScheduled = false;
+	tink_state_Observable.updatePending();
+};
+tink_state_Observable.updatePending = function(maxSeconds) {
+	if(maxSeconds == null) {
+		maxSeconds = .01;
+	}
+	var hrtime = process.hrtime();
+	var end = hrtime[0] + hrtime[1] / 1e9 + maxSeconds;
+	while(true) {
+		var old = tink_state_Observable.scheduled;
+		tink_state_Observable.scheduled = [];
+		var _g = 0;
+		while(_g < old.length) {
+			var o = old[_g];
+			++_g;
+			o();
+		}
+		var tmp;
+		if(tink_state_Observable.scheduled.length > 0) {
+			var hrtime = process.hrtime();
+			tmp = hrtime[0] + hrtime[1] / 1e9 < end;
+		} else {
+			tmp = false;
+		}
+		if(!tmp) {
+			break;
+		}
+	}
+	if(tink_state_Observable.scheduled.length > 0) {
+		tink_state_Observable.scheduleUpdate();
+		return true;
+	} else {
+		return false;
+	}
+};
+tink_state_Observable.updateAll = function() {
+	tink_state_Observable.updatePending(Infinity);
+};
+tink_state_Observable.lift = function(o) {
+	return o;
+};
+tink_state_Observable.deliver = function(o,initial) {
+	return tink_state_Observable.map(o,tink_state_Transform.plain(function(p) {
+		if(p._hx_index == 1) {
+			initial = p.result;
+			return initial;
+		} else {
+			return initial;
+		}
+	}));
+};
+tink_state_Observable.flatten = function(o) {
+	return tink_state_Observable.create(function() {
+		var m = tink_state_Observable.measure(o);
+		var m2 = tink_state_Observable.measure(m.a);
+		var this1 = new tink_core_MPair(m2.a,tink_core_Future.or(m.b,m2.b));
+		var this2 = this1;
+		return this2;
+	});
+};
+tink_state_Observable.ofPromise = function(p) {
+	if(p == null) {
+		throw haxe_Exception.thrown("Expected Promise but got null");
+	}
+	var value = tink_state_Promised.Loading;
+	var _e = p;
+	var _g = function(f) {
+		return tink_core_Future.map(_e,f);
+	};
+	var f = function(_) {
+		return null;
+	};
+	var becameInvalid = new tink_core__$Lazy_LazyFunc(function() {
+		return _g(f);
+	});
+	return tink_state_Observable.create(function() {
+		if(p != null) {
+			p.handle(function(o) {
+				switch(o._hx_index) {
+				case 0:
+					value = tink_state_Promised.Done(o.data);
+					break;
+				case 1:
+					value = tink_state_Promised.Failed(o.failure);
+					break;
+				}
+				becameInvalid = new tink_core__$Lazy_LazyConst(tink_state_ConstObservable.NEVER);
+			});
+		}
+		var becameInvalid1 = tink_core_Lazy.get(becameInvalid);
+		var this1 = new tink_core_MPair(value,becameInvalid1);
+		var this2 = this1;
+		return this2;
+	});
+};
+tink_state_Observable.create = function(f,comparator) {
+	return new tink_state__$Observable_SimpleObservable(f,comparator);
+};
+tink_state_Observable.auto = function(f,comparator) {
+	return new tink_state__$Observable_AutoObservable(f,comparator);
+};
+tink_state_Observable.const = function(value) {
+	return new tink_state_ConstObservable(value);
+};
+tink_state_Observable.untracked = function(f) {
+	tink_state_Observable.stack.push(null);
+	return tink_core_TypedError.tryFinally(f,($_=tink_state_Observable.stack,$bind($_,$_.pop)));
+};
+tink_state_Observable.eq = function(a,b) {
+	if(a == null) {
+		if(b == null) {
+			return true;
+		} else {
+			return false;
+		}
+	} else if(b == null) {
+		return false;
+	} else {
+		return tink_state_Observable.get_value(a) == tink_state_Observable.get_value(b);
+	}
+};
+tink_state_Observable.neq = function(a,b) {
+	return !tink_state_Observable.eq(a,b);
+};
+var tink_state_Computation = {};
+tink_state_Computation._new = function(f) {
+	var this1 = { f : f};
+	return this1;
+};
+tink_state_Computation.perform = function(this1) {
+	return this1.f();
+};
+tink_state_Computation.async = function(f) {
+	var this1 = { f : f};
+	var o = tink_state_Observable.map(tink_state_Observable.auto(this1),tink_state_Transform.plain(tink_state_Observable.ofPromise));
+	var this1 = { f : function() {
+		return tink_state_Observable.get_value(tink_state_Observable.get_value(o));
+	}};
+	return this1;
+};
+tink_state_Computation.asyncWithLast = function(f) {
+	var last = haxe_ds_Option.None;
+	var this1 = { f : function() {
+		return f(last);
+	}};
+	var o = tink_state_Observable.map(tink_state_Observable.auto(this1),tink_state_Transform.plain(tink_state_Observable.ofPromise));
+	var this1 = { f : function() {
+		var ret = tink_state_Observable.get_value(tink_state_Observable.get_value(o));
+		if(ret._hx_index == 1) {
+			last = haxe_ds_Option.Some(ret.result);
+		}
+		return ret;
+	}};
+	return this1;
+};
+tink_state_Computation.plain = function(f) {
+	var this1 = { f : f};
+	return this1;
+};
+tink_state_Computation.withLast = function(f) {
+	var last = haxe_ds_Option.None;
+	var this1 = { f : function() {
+		var ret = f(last);
+		last = haxe_ds_Option.Some(ret);
+		return ret;
+	}};
+	return this1;
+};
+var tink_state_ObservableObject = function() { };
+$hxClasses["tink.state.ObservableObject"] = tink_state_ObservableObject;
+tink_state_ObservableObject.__name__ = "tink.state.ObservableObject";
+tink_state_ObservableObject.__isInterface__ = true;
+tink_state_ObservableObject.prototype = {
+	isValid: null
+	,getComparator: null
+	,poll: null
+	,__class__: tink_state_ObservableObject
+};
+var tink_state__$Observable_SimpleObservable = function(f,comparator) {
+	this._poll = f;
+	this.comparator = comparator;
+};
+$hxClasses["tink.state._Observable.SimpleObservable"] = tink_state__$Observable_SimpleObservable;
+tink_state__$Observable_SimpleObservable.__name__ = "tink.state._Observable.SimpleObservable";
+tink_state__$Observable_SimpleObservable.__interfaces__ = [tink_state_ObservableObject];
+tink_state__$Observable_SimpleObservable.prototype = {
+	_poll: null
+	,comparator: null
+	,cache: null
+	,resetCache: function(_) {
+		this.cache = null;
+	}
+	,isValid: function() {
+		return this.cache != null;
+	}
+	,poll: function() {
+		var count = 0;
+		var last = null;
+		while(this.cache == null) {
+			var cache = this.cache = this._poll();
+			if(last == cache) {
+				throw haxe_Exception.thrown("Polling loops on the same value");
+			}
+			last = cache;
+			cache.b.handle($bind(this,this.resetCache));
+			if(count++ >= 100) {
+				throw haxe_Exception.thrown("Polling not concluded after 100 iterations");
+			}
+		}
+		return this.cache;
+	}
+	,getComparator: function() {
+		return this.comparator;
+	}
+	,__class__: tink_state__$Observable_SimpleObservable
+};
+var tink_state_Transform = {};
+tink_state_Transform._new = function(f) {
+	return f;
+};
+tink_state_Transform.apply = function(this1,value) {
+	return this1(value);
+};
+tink_state_Transform.naiveAsync = function(f) {
+	var this1 = function(p) {
+		switch(p._hx_index) {
+		case 0:
+			var this1 = new tink_core__$Future_SuspendableFuture(function(_) {
+				return null;
+			});
+			return this1;
+		case 1:
+			return f(p.result);
+		case 2:
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(p.error)));
+		}
+	};
+	return this1;
+};
+tink_state_Transform.naive = function(f) {
+	var this1 = function(p) {
+		switch(p._hx_index) {
+		case 0:
+			return tink_state_Promised.Loading;
+		case 1:
+			return tink_state_Promised.Done(f(p.result));
+		case 2:
+			return tink_state_Promised.Failed(p.error);
+		}
+	};
+	return this1;
+};
+tink_state_Transform.plain = function(f) {
+	return f;
+};
+var tink_state_ConstObservable = function(value) {
+	var this1 = new tink_core_MPair(value,tink_state_ConstObservable.NEVER);
+	var this2 = this1;
+	this.m = this2;
+};
+$hxClasses["tink.state.ConstObservable"] = tink_state_ConstObservable;
+tink_state_ConstObservable.__name__ = "tink.state.ConstObservable";
+tink_state_ConstObservable.__interfaces__ = [tink_state_ObservableObject];
+tink_state_ConstObservable.prototype = {
+	m: null
+	,poll: function() {
+		return this.m;
+	}
+	,isValid: function() {
+		return true;
+	}
+	,getComparator: function() {
+		return null;
+	}
+	,__class__: tink_state_ConstObservable
+};
+var tink_state__$Observable_Dependency = function() { };
+$hxClasses["tink.state._Observable.Dependency"] = tink_state__$Observable_Dependency;
+tink_state__$Observable_Dependency.__name__ = "tink.state._Observable.Dependency";
+tink_state__$Observable_Dependency.__isInterface__ = true;
+tink_state__$Observable_Dependency.prototype = {
+	changed: null
+	,unlink: null
+	,resubscribe: null
+	,__class__: tink_state__$Observable_Dependency
+};
+var tink_state__$Observable_DependencyOf = function(data,initial,trigger) {
+	this.data = data;
+	this.comparator = data.getComparator();
+	this.last = initial.a;
+	this.link = initial.b.handle($bind(trigger,trigger.trigger));
+};
+$hxClasses["tink.state._Observable.DependencyOf"] = tink_state__$Observable_DependencyOf;
+tink_state__$Observable_DependencyOf.__name__ = "tink.state._Observable.DependencyOf";
+tink_state__$Observable_DependencyOf.__interfaces__ = [tink_state__$Observable_Dependency];
+tink_state__$Observable_DependencyOf.prototype = {
+	data: null
+	,link: null
+	,comparator: null
+	,last: null
+	,changed: function() {
+		var _g = this.comparator;
+		if(_g == null) {
+			return this.last != tink_state_Observable.get_value(this.data);
+		} else {
+			return !_g(this.last,tink_state_Observable.get_value(this.data));
+		}
+	}
+	,unlink: function() {
+		var this1 = this.link;
+		if(this1 != null) {
+			this1.cancel();
+		}
+	}
+	,resubscribe: function(trigger) {
+		var next = tink_state_Observable.measure(this.data).b.handle(function(_) {
+			trigger.trigger(null);
+		});
+		var this1 = this.link;
+		if(this1 != null) {
+			this1.cancel();
+		}
+		this.link = next;
+	}
+	,__class__: tink_state__$Observable_DependencyOf
+};
+var tink_state__$Observable_AutoObservable = function(comp,comparator) {
+	var _gthis = this;
+	tink_state__$Observable_SimpleObservable.call(this,function() {
+		_gthis.trigger = new tink_core_FutureTrigger();
+		if(_gthis.dependencies != null) {
+			var changed = false;
+			var _g = 0;
+			var _g1 = _gthis.dependencies;
+			while(_g < _g1.length) {
+				var d = _g1[_g];
+				++_g;
+				if(d.changed()) {
+					changed = true;
+					break;
+				}
+			}
+			if(changed) {
+				var _g = 0;
+				var _g1 = _gthis.dependencies;
+				while(_g < _g1.length) {
+					var d = _g1[_g];
+					++_g;
+					d.unlink();
+				}
+			} else {
+				var _g = 0;
+				var _g1 = _gthis.dependencies;
+				while(_g < _g1.length) {
+					var d = _g1[_g];
+					++_g;
+					d.resubscribe(_gthis.trigger);
+				}
+				var this1 = new tink_core_MPair(_gthis.last,_gthis.trigger);
+				var this2 = this1;
+				return this2;
+			}
+		}
+		_gthis.dependencies = [];
+		_gthis.isSubscribed = new haxe_ds_ObjectMap();
+		var this1 = new tink_core_MPair(_gthis.last = comp.f(),_gthis.trigger);
+		var this2 = this1;
+		return this2;
+	},comparator);
+};
+$hxClasses["tink.state._Observable.AutoObservable"] = tink_state__$Observable_AutoObservable;
+tink_state__$Observable_AutoObservable.__name__ = "tink.state._Observable.AutoObservable";
+tink_state__$Observable_AutoObservable.__super__ = tink_state__$Observable_SimpleObservable;
+tink_state__$Observable_AutoObservable.prototype = $extend(tink_state__$Observable_SimpleObservable.prototype,{
+	trigger: null
+	,dependencies: null
+	,isSubscribed: null
+	,last: null
+	,subscribe: function(dependency,initial) {
+		if(!this.isSubscribed.h[dependency.__id__]) {
+			this.isSubscribed.set(dependency,true);
+			this.dependencies.push(new tink_state__$Observable_DependencyOf(dependency,initial,this.trigger));
+		}
+	}
+	,__class__: tink_state__$Observable_AutoObservable
+});
+var tink_state_Promised = $hxEnums["tink.state.Promised"] = { __ename__ : "tink.state.Promised", __constructs__ : ["Loading","Done","Failed"]
+	,Loading: {_hx_index:0,__enum__:"tink.state.Promised",toString:$estr}
+	,Done: ($_=function(result) { return {_hx_index:1,result:result,__enum__:"tink.state.Promised",toString:$estr}; },$_.__params__ = ["result"],$_)
+	,Failed: ($_=function(error) { return {_hx_index:2,error:error,__enum__:"tink.state.Promised",toString:$estr}; },$_.__params__ = ["error"],$_)
+};
+var tink_state_PromisedTools = function() { };
+$hxClasses["tink.state.PromisedTools"] = tink_state_PromisedTools;
+tink_state_PromisedTools.__name__ = "tink.state.PromisedTools";
+tink_state_PromisedTools.next = function(a,f) {
+	switch(a._hx_index) {
+	case 0:
+		return tink_core_Promise.fromNever(tink_core_Promise.NEVER);
+	case 1:
+		return f(a.result);
+	case 2:
+		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(a.error)));
+	}
+};
+tink_state_PromisedTools.map = function(a,f) {
+	switch(a._hx_index) {
+	case 0:
+		return tink_state_Promised.Loading;
+	case 1:
+		return tink_state_Promised.Done(f(a.result));
+	case 2:
+		return tink_state_Promised.Failed(a.error);
+	}
+};
+tink_state_PromisedTools.flatMap = function(a,f) {
+	switch(a._hx_index) {
+	case 0:
+		return tink_state_Promised.Loading;
+	case 1:
+		return f(a.result);
+	case 2:
+		return tink_state_Promised.Failed(a.error);
+	}
+};
+tink_state_PromisedTools.toOption = function(p) {
+	if(p._hx_index == 1) {
+		return haxe_ds_Option.Some(p.result);
+	} else {
+		return haxe_ds_Option.None;
+	}
+};
+tink_state_PromisedTools.or = function(p,l) {
+	if(p._hx_index == 1) {
+		return p.result;
+	} else {
+		return tink_core_Lazy.get(l);
+	}
+};
+tink_state_PromisedTools.orNull = function(p) {
+	if(p._hx_index == 1) {
+		return p.result;
+	} else {
+		return null;
+	}
+};
+tink_state_PromisedTools.all = function(p) {
+	var ret = [];
+	var p1 = $getIterator(p);
+	while(p1.hasNext()) {
+		var p = p1.next();
+		switch(p._hx_index) {
+		case 0:
+			return tink_state_Promised.Loading;
+		case 1:
+			ret.push(p.result);
+			break;
+		case 2:
+			return tink_state_Promised.Failed(p.error);
+		}
+	}
+	return tink_state_Promised.Done(ret);
+};
+var tink_state_State = {};
+tink_state_State.get_value = function(this1) {
+	return tink_state_Observable.get_value(this1);
+};
+tink_state_State._new = function(value,isEqual,guard) {
+	var this1 = new tink_state__$State_SimpleState(value,isEqual,guard);
+	return this1;
+};
+tink_state_State.observe = function(this1) {
+	return this1;
+};
+tink_state_State.transform = function(this1,rules) {
+	return new tink_state__$State_CompoundState(tink_state_Observable.map(this1,tink_state_Transform.plain($bind(rules,rules.read))),function(value) {
+		this1.set(rules.write(value));
+	});
+};
+tink_state_State.bind = function(this1,options,cb) {
+	return tink_state_Observable.bind(this1,options,cb);
+};
+tink_state_State.toggle = function(s) {
+	s.set(!s.poll().a);
+};
+tink_state_State.toCallback = function(this1) {
+	return $bind(this1,this1.set);
+};
+var tink_state__$State_StateObject = function() { };
+$hxClasses["tink.state._State.StateObject"] = tink_state__$State_StateObject;
+tink_state__$State_StateObject.__name__ = "tink.state._State.StateObject";
+tink_state__$State_StateObject.__isInterface__ = true;
+tink_state__$State_StateObject.__interfaces__ = [tink_state_ObservableObject];
+tink_state__$State_StateObject.prototype = {
+	set: null
+	,__class__: tink_state__$State_StateObject
+};
+var tink_state__$State_CompoundState = function(data,set,comparator) {
+	this.data = data;
+	this.update = set;
+	this.comparator = comparator;
+};
+$hxClasses["tink.state._State.CompoundState"] = tink_state__$State_CompoundState;
+tink_state__$State_CompoundState.__name__ = "tink.state._State.CompoundState";
+tink_state__$State_CompoundState.__interfaces__ = [tink_state__$State_StateObject];
+tink_state__$State_CompoundState.prototype = {
+	data: null
+	,update: null
+	,comparator: null
+	,isValid: function() {
+		return this.data.isValid();
+	}
+	,poll: function() {
+		return this.data.poll();
+	}
+	,set: function(value) {
+		this.update(value);
+	}
+	,getComparator: function() {
+		return this.comparator;
+	}
+	,__class__: tink_state__$State_CompoundState
+};
+var tink_state__$State_SimpleState = function(value,isEqual,guard) {
+	this.guard = guard;
+	this.isEqual = isEqual;
+	this.value = value;
+};
+$hxClasses["tink.state._State.SimpleState"] = tink_state__$State_SimpleState;
+tink_state__$State_SimpleState.__name__ = "tink.state._State.SimpleState";
+tink_state__$State_SimpleState.__interfaces__ = [tink_state__$State_StateObject];
+tink_state__$State_SimpleState.prototype = {
+	next: null
+	,trigger: null
+	,isEqual: null
+	,guard: null
+	,isValid: function() {
+		return true;
+	}
+	,poll: function() {
+		if(this.next == null) {
+			if(this.guard != null) {
+				this.value = this.guard(this.value);
+			}
+			this.arm();
+		}
+		return this.next;
+	}
+	,value: null
+	,arm: function() {
+		this.trigger = new tink_core_FutureTrigger();
+		var this1 = new tink_core_MPair(this.value,this.trigger);
+		var this2 = this1;
+		this.next = this2;
+	}
+	,differs: function(a,b) {
+		if(this.isEqual == null) {
+			return a != b;
+		} else {
+			return !this.isEqual(a,b);
+		}
+	}
+	,getComparator: function() {
+		return this.isEqual;
+	}
+	,set: function(value) {
+		if(this.guard != null) {
+			if(this.next == null) {
+				this.value = this.guard(this.value);
+			}
+			value = this.guard(value);
+		}
+		var b = this.value;
+		if(this.isEqual == null ? value != b : !this.isEqual(value,b)) {
+			this.value = value;
+			var last = this.trigger;
+			this.arm();
+			if(last != null) {
+				last.trigger(null);
+			}
+		}
+	}
+	,__class__: tink_state__$State_SimpleState
 };
 var tink_streams_IdealStream = {};
 tink_streams_IdealStream.promiseOfIdealStream = function(p) {
@@ -9427,7 +11135,11 @@ tink_streams__$Stream_CompoundStream.consumeParts = function(parts,handler,cb) {
 tink_streams__$Stream_CompoundStream.of = function(streams) {
 	var ret = [];
 	var _g = 0;
-	while(_g < streams.length) streams[_g++].decompose(ret);
+	while(_g < streams.length) {
+		var s = streams[_g];
+		++_g;
+		s.decompose(ret);
+	}
 	if(ret.length == 0) {
 		return tink_streams_Empty.inst;
 	} else {
@@ -9436,7 +11148,8 @@ tink_streams__$Stream_CompoundStream.of = function(streams) {
 };
 tink_streams__$Stream_CompoundStream.__super__ = tink_streams_StreamBase;
 tink_streams__$Stream_CompoundStream.prototype = $extend(tink_streams_StreamBase.prototype,{
-	get_depleted: function() {
+	parts: null
+	,get_depleted: function() {
 		switch(this.parts.length) {
 		case 0:
 			return true;
@@ -9473,7 +11186,11 @@ tink_streams__$Stream_CompoundStream.prototype = $extend(tink_streams_StreamBase
 	,decompose: function(into) {
 		var _g = 0;
 		var _g1 = this.parts;
-		while(_g < _g1.length) _g1[_g++].decompose(into);
+		while(_g < _g1.length) {
+			var p = _g1[_g];
+			++_g;
+			p.decompose(into);
+		}
 	}
 	,forEach: function(handler) {
 		var parts = this.parts;
@@ -9493,7 +11210,7 @@ var tink_streams__$Stream_RegroupStream = function(source,f,prev,buf) {
 	}
 	var ret = null;
 	var terminated = false;
-	tink_streams__$Stream_CompoundStream.call(this,[prev,tink_streams_Stream.flatten(tink_core_Future.map(source.forEach(tink_streams_Handler.ofUnknown(function(item) {
+	var next = tink_streams_Stream.flatten(tink_core_Future.map(source.forEach(tink_streams_Handler.ofUnknown(function(item) {
 		buf.push(item);
 		return tink_core_Future.map(f.apply(buf,tink_streams_RegroupStatus.Flowing),function(o) {
 			switch(o._hx_index) {
@@ -9550,7 +11267,8 @@ var tink_streams__$Stream_RegroupStream = function(source,f,prev,buf) {
 			}
 			break;
 		}
-	}))]);
+	}));
+	tink_streams__$Stream_CompoundStream.call(this,[prev,next]);
 };
 $hxClasses["tink.streams._Stream.RegroupStream"] = tink_streams__$Stream_RegroupStream;
 tink_streams__$Stream_RegroupStream.__name__ = "tink.streams._Stream.RegroupStream";
@@ -9588,7 +11306,9 @@ $hxClasses["tink.streams._Stream.CloggedStream"] = tink_streams__$Stream_Clogged
 tink_streams__$Stream_CloggedStream.__name__ = "tink.streams._Stream.CloggedStream";
 tink_streams__$Stream_CloggedStream.__super__ = tink_streams_StreamBase;
 tink_streams__$Stream_CloggedStream.prototype = $extend(tink_streams_StreamBase.prototype,{
-	next: function() {
+	rest: null
+	,error: null
+	,next: function() {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_Step.Fail(this.error)));
 	}
 	,forEach: function(handler) {
@@ -9604,7 +11324,8 @@ $hxClasses["tink.streams._Stream.ErrorStream"] = tink_streams__$Stream_ErrorStre
 tink_streams__$Stream_ErrorStream.__name__ = "tink.streams._Stream.ErrorStream";
 tink_streams__$Stream_ErrorStream.__super__ = tink_streams_StreamBase;
 tink_streams__$Stream_ErrorStream.prototype = $extend(tink_streams_StreamBase.prototype,{
-	next: function() {
+	error: null
+	,next: function() {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_Step.Fail(this.error)));
 	}
 	,forEach: function(handler) {
@@ -9617,7 +11338,7 @@ tink_streams_Mapping._new = function(o) {
 	return o;
 };
 tink_streams_Mapping.ofNext = function(n) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		var this1 = tink_core_Promise.next(n(i[0]),function(o) {
 			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_streams_RegroupResult.Converted(tink_streams_Stream.single(o)))));
 		});
@@ -9631,16 +11352,18 @@ tink_streams_Mapping.ofNext = function(n) {
 			}
 		});
 	}};
+	return this1;
 };
 tink_streams_Mapping.ofAsync = function(f) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		return tink_core_Future.map(f(i[0]),function(o) {
 			return tink_streams_RegroupResult.Converted(tink_streams_Stream.single(o));
 		});
 	}};
+	return this1;
 };
 tink_streams_Mapping.ofSync = function(f) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		var v;
 		var _g = f(i[0]);
 		switch(_g._hx_index) {
@@ -9653,18 +11376,20 @@ tink_streams_Mapping.ofSync = function(f) {
 		}
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(v));
 	}};
+	return this1;
 };
 tink_streams_Mapping.ofPlain = function(f) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_RegroupResult.Converted(tink_streams_Stream.single(f(i[0])))));
 	}};
+	return this1;
 };
 var tink_streams_Filter = {};
 tink_streams_Filter._new = function(o) {
 	return o;
 };
 tink_streams_Filter.ofNext = function(n) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		var this1 = tink_core_Promise.next(n(i[0]),function(matched) {
 			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_streams_RegroupResult.Converted(matched ? tink_streams_Stream.single(i[0]) : tink_streams_Empty.inst))));
 		});
@@ -9678,16 +11403,18 @@ tink_streams_Filter.ofNext = function(n) {
 			}
 		});
 	}};
+	return this1;
 };
 tink_streams_Filter.ofAsync = function(f) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		return tink_core_Future.map(f(i[0]),function(matched) {
 			return tink_streams_RegroupResult.Converted(matched ? tink_streams_Stream.single(i[0]) : tink_streams_Empty.inst);
 		});
 	}};
+	return this1;
 };
 tink_streams_Filter.ofSync = function(f) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		var v;
 		var _g = f(i[0]);
 		switch(_g._hx_index) {
@@ -9700,11 +11427,13 @@ tink_streams_Filter.ofSync = function(f) {
 		}
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(v));
 	}};
+	return this1;
 };
 tink_streams_Filter.ofPlain = function(f) {
-	return { apply : function(i,_) {
+	var this1 = { apply : function(i,_) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_RegroupResult.Converted(f(i[0]) ? tink_streams_Stream.single(i[0]) : tink_streams_Empty.inst)));
 	}};
+	return this1;
 };
 var tink_streams_IdealizeStream = function(target,rescue) {
 	tink_streams_IdealStreamBase.call(this);
@@ -9715,7 +11444,9 @@ $hxClasses["tink.streams.IdealizeStream"] = tink_streams_IdealizeStream;
 tink_streams_IdealizeStream.__name__ = "tink.streams.IdealizeStream";
 tink_streams_IdealizeStream.__super__ = tink_streams_IdealStreamBase;
 tink_streams_IdealizeStream.prototype = $extend(tink_streams_IdealStreamBase.prototype,{
-	get_depleted: function() {
+	target: null
+	,rescue: null
+	,get_depleted: function() {
 		return this.target.get_depleted();
 	}
 	,next: function() {
@@ -9759,7 +11490,8 @@ $hxClasses["tink.streams.Single"] = tink_streams_Single;
 tink_streams_Single.__name__ = "tink.streams.Single";
 tink_streams_Single.__super__ = tink_streams_StreamBase;
 tink_streams_Single.prototype = $extend(tink_streams_StreamBase.prototype,{
-	next: function() {
+	value: null
+	,next: function() {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_Step.Link(tink_core_Lazy.get(this.value),tink_streams_Empty.inst)));
 	}
 	,forEach: function(handle) {
@@ -9787,14 +11519,16 @@ tink_streams_Handler.apply = function(this1,item) {
 	return this1(item);
 };
 tink_streams_Handler.ofSafeSync = function(f) {
-	return function(i) {
+	var this1 = function(i) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(f(i)));
 	};
+	return this1;
 };
 tink_streams_Handler.ofUnknownSync = function(f) {
-	return function(i) {
+	var this1 = function(i) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(f(i)));
 	};
+	return this1;
 };
 tink_streams_Handler.ofSafe = function(f) {
 	return f;
@@ -9810,28 +11544,31 @@ tink_streams_Reducer.apply = function(this1,res,item) {
 	return this1(res,item);
 };
 tink_streams_Reducer.ofSafeSync = function(f) {
-	return function(res,cur) {
+	var this1 = function(res,cur) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(f(res,cur)));
 	};
+	return this1;
 };
 tink_streams_Reducer.ofUnknownSync = function(f) {
-	return function(res,cur) {
+	var this1 = function(res,cur) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(f(res,cur)));
 	};
+	return this1;
 };
 tink_streams_Reducer.ofSafe = function(f) {
 	return f;
 };
 tink_streams_Reducer.ofPlainSync = function(f) {
-	return function(res,cur) {
+	var this1 = function(res,cur) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_streams_ReductionStep.Progress(f(res,cur))));
 	};
+	return this1;
 };
 tink_streams_Reducer.ofUnknown = function(f) {
 	return f;
 };
 tink_streams_Reducer.ofPromiseBased = function(f) {
-	return function(res,cur) {
+	var this1 = function(res,cur) {
 		return tink_core_Future.map(f(res,cur),function(s) {
 			switch(s._hx_index) {
 			case 0:
@@ -9841,6 +11578,7 @@ tink_streams_Reducer.ofPromiseBased = function(f) {
 			}
 		});
 	};
+	return this1;
 };
 var tink_streams_FutureStream = function(f) {
 	tink_streams_StreamBase.call(this);
@@ -9850,7 +11588,8 @@ $hxClasses["tink.streams.FutureStream"] = tink_streams_FutureStream;
 tink_streams_FutureStream.__name__ = "tink.streams.FutureStream";
 tink_streams_FutureStream.__super__ = tink_streams_StreamBase;
 tink_streams_FutureStream.prototype = $extend(tink_streams_StreamBase.prototype,{
-	next: function() {
+	f: null
+	,next: function() {
 		return tink_core_Future.flatMap(this.f,function(s) {
 			return s.next();
 		});
@@ -9981,7 +11720,10 @@ var tink_streams_nodejs_WrappedReadable = function(name,native,onEnd) {
 $hxClasses["tink.streams.nodejs.WrappedReadable"] = tink_streams_nodejs_WrappedReadable;
 tink_streams_nodejs_WrappedReadable.__name__ = "tink.streams.nodejs.WrappedReadable";
 tink_streams_nodejs_WrappedReadable.prototype = {
-	read: function() {
+	native: null
+	,name: null
+	,end: null
+	,read: function() {
 		var _gthis = this;
 		return tink_core_Future.first(tink_core_Future.async(function(cb) {
 			var attempt = null;
@@ -9991,7 +11733,8 @@ tink_streams_nodejs_WrappedReadable.prototype = {
 					if(_g == null) {
 						_gthis.native.once("readable",attempt);
 					} else {
-						cb(tink_core_Outcome.Success(_g));
+						var object = _g;
+						cb(tink_core_Outcome.Success(object));
 					}
 				} catch( _g ) {
 					var _g1 = haxe_Exception.caught(_g).unwrap();
@@ -10005,26 +11748,33 @@ tink_streams_nodejs_WrappedReadable.prototype = {
 };
 var tink_template_Html = {};
 tink_template_Html._new = function(s) {
-	return s;
+	var this1 = s;
+	return this1;
 };
 tink_template_Html.escape = function(s) {
-	return s == null ? "" : tink_HtmlString.htmlEscape(s);
+	var this1 = s == null ? "" : tink_HtmlString.htmlEscape(s);
+	return this1;
 };
 tink_template_Html.toString = function(this1) {
 	return this1;
 };
 tink_template_Html.ofMultiple = function(parts) {
-	return parts.join("");
+	var this1 = parts.join("");
+	return this1;
 };
 tink_template_Html.of = function(a) {
 	return tink_template_Html.escape(Std.string(a));
 };
 tink_template_Html.buffer = function() {
-	return new tink_htmlstring_RawBuffer();
+	var this1 = new tink_htmlstring_RawBuffer();
+	var this2 = this1;
+	return this2;
 };
 var tink_template_HtmlBuffer = {};
 tink_template_HtmlBuffer._new = function() {
-	return new tink_htmlstring_RawBuffer();
+	var this1 = new tink_htmlstring_RawBuffer();
+	var this2 = this1;
+	return this2;
 };
 tink_template_HtmlBuffer.collapse = function(this1) {
 	return this1.out;
@@ -10040,7 +11790,8 @@ tink_template_HtmlBuffer.addRaw = function(this1,s) {
 };
 var tink_url_Auth = {};
 tink_url_Auth._new = function(user,password) {
-	return "" + user + ":" + password;
+	var this1 = "" + user + ":" + password;
+	return this1;
 };
 tink_url_Auth.get_user = function(this1) {
 	if(this1 == null) {
@@ -10174,7 +11925,9 @@ tink_url_Path.normalize = function(s) {
 	var _g = 0;
 	var _g1 = s.split("/");
 	while(_g < _g1.length) {
-		var _g2 = StringTools.trim(_g1[_g++]);
+		var part = _g1[_g];
+		++_g;
+		var _g2 = StringTools.trim(part);
 		switch(_g2) {
 		case "":
 			break;
@@ -10241,13 +11994,18 @@ tink_url_Portion.toString = function(this1) {
 	}
 };
 tink_url_Portion.ofString = function(s) {
-	return s == null ? "" : encodeURIComponent(s);
+	var this1 = s == null ? "" : encodeURIComponent(s);
+	return this1;
 };
 var tink_url_PortionArray = {};
 tink_url_PortionArray.toStringArray = function(this1) {
 	var _g = [];
 	var _g1 = 0;
-	while(_g1 < this1.length) _g.push(tink_url_Portion.toString(this1[_g1++]));
+	while(_g1 < this1.length) {
+		var p = this1[_g1];
+		++_g1;
+		_g.push(tink_url_Portion.toString(p));
+	}
 	return _g;
 };
 var tink_url_Query = {};
@@ -10255,10 +12013,14 @@ tink_url_Query.parse = function(this1) {
 	return new tink_url__$Query_QueryStringParser(this1,"&","=",0);
 };
 tink_url_Query.with = function(this1,values) {
-	var ret = [];
+	var this2 = [];
+	var ret = this2;
 	var _g = [];
 	var key = values.keys();
-	while(key.hasNext()) _g.push(key.next());
+	while(key.hasNext()) {
+		var key1 = key.next();
+		_g.push(key1);
+	}
 	var p = new tink_url__$Query_QueryStringParser(this1,"&","=",0);
 	while(p.hasNext()) {
 		var p1 = p.next();
@@ -10290,7 +12052,8 @@ tink_url_Query.toMap = function(this1) {
 	return _g;
 };
 tink_url_Query.ofObj = function(v) {
-	var ret = [];
+	var this1 = [];
+	var ret = this1;
 	var v1 = v;
 	var _g = 0;
 	var _g1 = Reflect.fields(v1);
@@ -10305,7 +12068,8 @@ tink_url_Query.toString = function(this1) {
 	return this1;
 };
 tink_url_Query.build = function() {
-	return [];
+	var this1 = [];
+	return this1;
 };
 tink_url_Query.parseString = function(s,sep,set,pos) {
 	if(pos == null) {
@@ -10321,7 +12085,8 @@ tink_url_Query.parseString = function(s,sep,set,pos) {
 };
 var tink_url_QueryStringBuilder = {};
 tink_url_QueryStringBuilder._new = function() {
-	return [];
+	var this1 = [];
+	return this1;
 };
 tink_url_QueryStringBuilder.add = function(this1,name,value) {
 	this1.push(name + "=" + value);
@@ -10355,7 +12120,11 @@ tink_url__$Query_QueryStringParser.trimmedSub = function(s,start,end) {
 	return s.substring(start,end);
 };
 tink_url__$Query_QueryStringParser.prototype = {
-	hasNext: function() {
+	s: null
+	,sep: null
+	,set: null
+	,pos: null
+	,hasNext: function() {
 		return this.pos < this.s.length;
 	}
 	,next: function() {
@@ -10376,7 +12145,8 @@ tink_url__$Query_QueryStringParser.prototype = {
 };
 var tink_web_Response = {};
 tink_web_Response._new = function(header,body) {
-	return new tink_http_Message(header,body);
+	var this1 = new tink_http_Message(header,body);
+	return this1;
 };
 tink_web_Response.getData = function(this1) {
 	return this1.body;
@@ -10437,172 +12207,15 @@ tink_web_forms_FormFile.ofJson = function(rep) {
 tink_web_forms_FormFile.ofBlob = function(name,type,data) {
 	return tink_http_UploadedFile.ofBlob(name,type,data);
 };
-var tink_web_proxy_Remote = function() { };
-$hxClasses["tink.web.proxy.Remote"] = tink_web_proxy_Remote;
-tink_web_proxy_Remote.__name__ = "tink.web.proxy.Remote";
-var tink_web_proxy_RemoteEndpoint = {};
-tink_web_proxy_RemoteEndpoint.get_host = function(this1) {
-	return this1.host;
-};
-tink_web_proxy_RemoteEndpoint.get_pathSuffix = function(this1) {
-	if(this1.pathSuffix == null) {
-		return "";
-	} else {
-		return this1.pathSuffix;
-	}
-};
-tink_web_proxy_RemoteEndpoint.get_headers = function(this1) {
-	var _g = this1.headers;
-	if(_g == null) {
-		return tink_web_proxy_RemoteEndpoint.NO_HEADERS;
-	} else {
-		return _g;
-	}
-};
-tink_web_proxy_RemoteEndpoint.get_path = function(this1) {
-	var _g = this1.path;
-	if(_g == null) {
-		return tink_web_proxy_RemoteEndpoint.NO_PATH;
-	} else {
-		return _g;
-	}
-};
-tink_web_proxy_RemoteEndpoint.get_query = function(this1) {
-	return this1.query;
-};
-tink_web_proxy_RemoteEndpoint._new = function(host,pathSuffix) {
-	return { host : host, pathSuffix : pathSuffix};
-};
-tink_web_proxy_RemoteEndpoint.concat = function(a,b) {
-	if(a == null) {
-		return b;
-	} else if(b == null) {
-		return a;
-	} else {
-		return a.concat(b);
-	}
-};
-tink_web_proxy_RemoteEndpoint.sub = function(this1,options) {
-	return { host : this1.host, pathSuffix : this1.pathSuffix, headers : tink_web_proxy_RemoteEndpoint.concat(this1.headers,options.headers), query : tink_web_proxy_RemoteEndpoint.concat(this1.query,options.query), path : tink_web_proxy_RemoteEndpoint.concat(this1.path,options.path)};
-};
-tink_web_proxy_RemoteEndpoint.uri = function(this1) {
-	var _g = this1.path;
-	return "/" + (_g == null ? "" : tink_url_Path.normalize(_g.join("/"))) + (this1.pathSuffix == null ? "" : this1.pathSuffix) + (this1.query == null ? "null" : tink_web_proxy_QueryParams.toString(this1.query));
-};
-tink_web_proxy_RemoteEndpoint.request = function(this1,client,method,body,reader) {
-	return tink_core_Promise.next(client.request(new tink_http_OutgoingRequest(new tink_http_OutgoingRequestHeader(method,tink_Url.fromString("//" + (this1.host == null ? "null" : this1.host) + tink_web_proxy_RemoteEndpoint.uri(this1)),null,this1.headers),body)),function(response) {
-		return (tink_web_proxy_ResponseReader.withHeader(reader,response.header))(response.body);
-	});
-};
-tink_web_proxy_RemoteEndpoint.fromHost = function(host) {
-	return tink_web_proxy_RemoteEndpoint._new(host);
-};
-tink_web_proxy_RemoteEndpoint.ofUrl = function(u) {
-	var tmp = tink_web_proxy_RemoteEndpoint._new(u.hosts[0],u.hash);
-	var _g = u.auth;
-	var tmp1 = _g == null ? null : [new tink_http_HeaderField("authorization",tink_http_HeaderValue.basicAuth(_g == null ? null : _g.split(":")[0],_g == null ? null : _g.split(":")[1]))];
-	var tmp2 = tink_url_Path.parts(u.path);
-	var _g = [];
-	var p = new tink_url__$Query_QueryStringParser(u.query,"&","=",0);
-	while(p.hasNext()) {
-		var p1 = p.next();
-		_g.push(new tink_core_NamedWith(tink_url_Portion.ofString(p1.name),p1.value));
-	}
-	return tink_web_proxy_RemoteEndpoint.sub(tmp,{ headers : tmp1, path : tmp2, query : _g});
-};
-var tink_web_proxy_ResponseReader = {};
-tink_web_proxy_ResponseReader.withHeader = function(this1,header) {
-	var _g = this1;
-	var a1 = header;
-	return function(a2) {
-		return _g(a1,a2);
-	};
-};
-tink_web_proxy_ResponseReader.ofStringReader = function(read) {
-	return function(header,body) {
-		return tink_core_Promise.next(tink_io_RealSourceTools.all(body),function(chunk) {
-			if(header.statusCode >= 400) {
-				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(tink_core_TypedError.withData(header.statusCode,header.reason,chunk.toString(),{ fileName : "tink/web/proxy/Remote.hx", lineNumber : 180, className : "tink.web.proxy._Remote.ResponseReader_Impl_", methodName : "ofStringReader"}))));
-			} else {
-				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(read(chunk.toString())));
-			}
-		});
-	};
-};
-tink_web_proxy_ResponseReader.ofSafeStringReader = function(read) {
-	return tink_web_proxy_ResponseReader.ofStringReader(function(s) {
-		return tink_core_Outcome.Success(read(s));
-	});
-};
-var tink_web_proxy_QueryParams = {};
-tink_web_proxy_QueryParams._new = function() {
-	return [];
-};
-tink_web_proxy_QueryParams.add = function(this1,name,value) {
-	this1.push(new tink_core_NamedWith(tink_url_Portion.ofString(name),tink_url_Portion.ofString(value)));
-	return this1;
-};
-tink_web_proxy_QueryParams.flush = function(this1) {
-	return this1;
-};
-tink_web_proxy_QueryParams.toString = function(this1) {
-	if(this1 == null) {
-		return "";
-	} else if(this1.length == 0) {
-		return "";
-	} else {
-		var ret = [];
-		var _g = 0;
-		while(_g < this1.length) {
-			var p = this1[_g];
-			++_g;
-			ret.push(p.name + "=" + p.value);
-		}
-		return "?" + (ret == null ? "null" : ret.join("&"));
-	}
-};
-var tink_web_proxy_HeaderParams = {};
-tink_web_proxy_HeaderParams._new = function() {
-	return [];
-};
-tink_web_proxy_HeaderParams.add = function(this1,name,value) {
-	this1.push(new tink_http_HeaderField(name,value));
-	return this1;
-};
-tink_web_proxy_HeaderParams.flush = function(this1) {
-	return this1;
-};
-tink_web_proxy_HeaderParams.toString = function(this1) {
-	return new tink_http_Header(this1).toString();
-};
-var tink_web_proxy_RemoteBase = function(client,endpoint) {
-	this.client = client;
-	this.endpoint = endpoint;
-};
-$hxClasses["tink.web.proxy.RemoteBase"] = tink_web_proxy_RemoteBase;
-tink_web_proxy_RemoteBase.__name__ = "tink.web.proxy.RemoteBase";
-tink_web_proxy_RemoteBase.prototype = {
-	__class__: tink_web_proxy_RemoteBase
-};
-var tink_web_proxy_Remote0 = function(client,endpoint) {
-	tink_web_proxy_RemoteBase.call(this,client,endpoint);
-};
-$hxClasses["tink.web.proxy.Remote0"] = tink_web_proxy_Remote0;
-tink_web_proxy_Remote0.__name__ = "tink.web.proxy.Remote0";
-tink_web_proxy_Remote0.__super__ = tink_web_proxy_RemoteBase;
-tink_web_proxy_Remote0.prototype = $extend(tink_web_proxy_RemoteBase.prototype,{
-	test: function(e) {
-		return tink_web_proxy_RemoteEndpoint.request(tink_web_proxy_RemoteEndpoint.sub(this.endpoint,{ path : ["test",tink_url_Portion.ofString(e)], query : [], headers : [new tink_http_HeaderField("content-length",tink_http_HeaderValue.ofInt(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString("")).getLength()))].concat([])}),this.client,"GET",new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString("")))),function(header,body) {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(new tink_http_IncomingResponse(header,body))));
-		});
-	}
-	,__class__: tink_web_proxy_Remote0
-});
 var tink_web_routing_Path = {};
 tink_web_routing_Path.toString = function(this1) {
 	var _g = [];
 	var _g1 = 0;
-	while(_g1 < this1.length) _g.push(tink_url_Portion.stringly(this1[_g1++]));
+	while(_g1 < this1.length) {
+		var p = this1[_g1];
+		++_g1;
+		_g.push(tink_url_Portion.stringly(p));
+	}
 	return "/" + _g.join("/");
 };
 var tink_web_routing_Context = function(parent,accepts,request,depth,parts,params) {
@@ -10654,9 +12267,15 @@ tink_web_routing_Context.parseAcceptHeader = function(h) {
 		var accepted_h = Object.create(null);
 		var _g1 = 0;
 		while(_g1 < _g.length) {
+			var v = _g[_g1];
+			++_g1;
 			var _g2 = 0;
-			var _g3 = tink_http_HeaderValue.parse(_g[_g1++]);
-			while(_g2 < _g3.length) accepted_h[_g3[_g2++].value] = true;
+			var _g3 = tink_http_HeaderValue.parse(v);
+			while(_g2 < _g3.length) {
+				var part = _g3[_g2];
+				++_g2;
+				accepted_h[part.value] = true;
+			}
 		}
 		if(accepted_h["*/*"]) {
 			return tink_web_routing_Context.acceptsAll;
@@ -10671,9 +12290,15 @@ tink_web_routing_Context.acceptsAll = function(s) {
 	return true;
 };
 tink_web_routing_Context.prototype = {
-	get_header: function() {
+	request: null
+	,depth: null
+	,parent: null
+	,parts: null
+	,params: null
+	,get_header: function() {
 		return this.request.header;
 	}
+	,accepts: null
 	,allRaw: function() {
 		var _g = this.request.body;
 		return tink_io_RealSourceTools.all(_g._hx_index == 0 ? _g.source : tink_io_Source.ofError(new tink_core_TypedError(501,"not implemented",{ fileName : "tink/web/routing/Context.hx", lineNumber : 47, className : "tink.web.routing.Context", methodName : "get_rawBody"})));
@@ -10701,7 +12326,7 @@ tink_web_routing_Context.prototype = {
 		switch(_g._hx_index) {
 		case 0:
 			var src = _g.source;
-			return (function() {
+			var parseForm = function() {
 				return tink_core_Promise.next(tink_io_RealSourceTools.all(src),tink_core_Next.ofSafeSync(function(chunk) {
 					var _g = [];
 					var part = new tink_url__$Query_QueryStringParser(chunk.toString(),"&","=",0);
@@ -10711,7 +12336,8 @@ tink_web_routing_Context.prototype = {
 					}
 					return _g;
 				}));
-			})();
+			};
+			return parseForm();
 		case 1:
 			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(_g.parts)));
 		}
@@ -10764,7 +12390,9 @@ $hxClasses["tink.web.routing.AuthedContext"] = tink_web_routing_AuthedContext;
 tink_web_routing_AuthedContext.__name__ = "tink.web.routing.AuthedContext";
 tink_web_routing_AuthedContext.__super__ = tink_web_routing_Context;
 tink_web_routing_AuthedContext.prototype = $extend(tink_web_routing_Context.prototype,{
-	sub: function(descend) {
+	session: null
+	,user: null
+	,sub: function(descend) {
 		return new tink_web_routing_AuthedContext(this,this.accepts,this.request,this.depth + descend,this.parts,this.params,this.session,this.user);
 	}
 	,__class__: tink_web_routing_AuthedContext
@@ -10802,15 +12430,21 @@ tink_web_routing_Response.ofRealSource = function(source,contentType) {
 	if(contentType == null) {
 		contentType = "application/octet-stream";
 	}
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(200,httpstatus_HttpStatusMessage.fromCode(200),[new tink_http_HeaderField("content-type",contentType)],"HTTP/1.1"),tink_io_RealSourceTools.idealize(source,function(_) {
+	var this1 = httpstatus_HttpStatusMessage.fromCode(200);
+	var this2 = new tink_http_ResponseHeaderBase(200,this1,[new tink_http_HeaderField("content-type",contentType)],"HTTP/1.1");
+	var this1 = new tink_http__$Response_OutgoingResponseData(this2,tink_io_RealSourceTools.idealize(source,function(_) {
 		return tink_io_Source.EMPTY;
 	}));
+	return this1;
 };
 tink_web_routing_Response.ofIdealSource = function(source,contentType) {
 	if(contentType == null) {
 		contentType = "application/octet-stream";
 	}
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(200,httpstatus_HttpStatusMessage.fromCode(200),[new tink_http_HeaderField("content-type",contentType)],"HTTP/1.1"),source);
+	var this1 = httpstatus_HttpStatusMessage.fromCode(200);
+	var this2 = new tink_http_ResponseHeaderBase(200,this1,[new tink_http_HeaderField("content-type",contentType)],"HTTP/1.1");
+	var this1 = new tink_http__$Response_OutgoingResponseData(this2,source);
+	return this1;
 };
 tink_web_routing_Response.fromRealSource = function(source) {
 	return tink_web_routing_Response.ofRealSource(tink_io_RealSourceTools.idealize(source,function(_) {
@@ -10824,7 +12458,10 @@ tink_web_routing_Response.ofHtml = function(h) {
 	return tink_web_routing_Response.textual(null,"text/html",h);
 };
 tink_web_routing_Response.ofUrl = function(u) {
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(302,httpstatus_HttpStatusMessage.fromCode(302),[new tink_http_HeaderField("location".toLowerCase(),tink_Url.toString(u))],"HTTP/1.1"),new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_Chunk.EMPTY)));
+	var this1 = httpstatus_HttpStatusMessage.fromCode(302);
+	var this2 = new tink_http_ResponseHeaderBase(302,this1,[new tink_http_HeaderField("location".toLowerCase(),tink_Url.toString(u))],"HTTP/1.1");
+	var this1 = new tink_http__$Response_OutgoingResponseData(this2,new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_Chunk.EMPTY)));
+	return this1;
 };
 tink_web_routing_Response.binary = function(code,contentType,bytes,headers) {
 	if(code == null) {
@@ -10836,7 +12473,10 @@ tink_web_routing_Response.empty = function(code) {
 	if(code == null) {
 		code = 200;
 	}
-	return new tink_http__$Response_OutgoingResponseData(new tink_http_ResponseHeaderBase(code,httpstatus_HttpStatusMessage.fromCode(code),[new tink_http_HeaderField("content-length","0")],"HTTP/1.1"),new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_Chunk.EMPTY)));
+	var this1 = httpstatus_HttpStatusMessage.fromCode(code);
+	var this2 = new tink_http_ResponseHeaderBase(code,this1,[new tink_http_HeaderField("content-length","0")],"HTTP/1.1");
+	var this1 = new tink_http__$Response_OutgoingResponseData(this2,new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_Chunk.EMPTY)));
+	return this1;
 };
 tink_web_routing_Response.textual = function(code,contentType,string,headers) {
 	if(code == null) {
@@ -10847,45 +12487,130 @@ tink_web_routing_Response.textual = function(code,contentType,string,headers) {
 var tink_web_routing_Router = function() { };
 $hxClasses["tink.web.routing.Router"] = tink_web_routing_Router;
 tink_web_routing_Router.__name__ = "tink.web.routing.Router";
-var tink_web_routing_Router0 = function(target) {
+var tink_web_routing_Router2 = function(target) {
 	this.target = target;
 };
-$hxClasses["tink.web.routing.Router0"] = tink_web_routing_Router0;
-tink_web_routing_Router0.__name__ = "tink.web.routing.Router0";
-tink_web_routing_Router0.prototype = {
-	route: function(ctx) {
+$hxClasses["tink.web.routing.Router2"] = tink_web_routing_Router2;
+tink_web_routing_Router2.__name__ = "tink.web.routing.Router2";
+tink_web_routing_Router2.prototype = {
+	target: null
+	,route: function(ctx) {
 		var l = ctx.parts.length - ctx.depth;
-		var _g = ctx.part(0);
+		var _g = l > 1;
+		var _g1 = l > 0;
+		var _g2 = ctx.part(0);
 		if(ctx.request.header.method == "GET") {
-			if(l > 0) {
-				if(_g == "test") {
-					if(l > 1 == false) {
+			if(_g1) {
+				switch(_g2) {
+				case "flat":
+					return this.flat(ctx,1);
+				case "test":
+					if(_g == false) {
 						return tink_core_Promise.ofSpecific(this.tarif(ctx));
 					} else {
 						var this1 = ctx.request.header.url;
-						return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 17, className : "tink.web.routing.Router0", methodName : "route"}))));
+						return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 18, className : "tink.web.routing.Router2", methodName : "route"}))));
 					}
-				} else {
+					break;
+				default:
 					var this1 = ctx.request.header.url;
-					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 17, className : "tink.web.routing.Router0", methodName : "route"}))));
+					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 18, className : "tink.web.routing.Router2", methodName : "route"}))));
 				}
 			} else {
 				return tink_core_Promise.ofSpecific(this.index(ctx));
 			}
+		} else if(_g2 == "flat") {
+			if(_g1 == true) {
+				return this.flat(ctx,1);
+			} else {
+				var this1 = ctx.request.header.url;
+				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 18, className : "tink.web.routing.Router2", methodName : "route"}))));
+			}
 		} else {
 			var this1 = ctx.request.header.url;
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 17, className : "tink.web.routing.Router0", methodName : "route"}))));
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 18, className : "tink.web.routing.Router2", methodName : "route"}))));
 		}
 	}
 	,index: function(ctx) {
 		return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_web_routing_Response.ofRealSource(new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(this.target.index())))),"text/html"))));
+	}
+	,flat: function(ctx,__depth__) {
+		var ctx1 = ctx.sub(__depth__);
+		return tink_core_Promise.next(new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(this.target.flat))),function(__target__) {
+			return new tink_web_routing_Router3(__target__).route(ctx1);
+		});
 	}
 	,tarif: function(ctx) {
 		return tink_core_Promise.next(new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(this.target.tarif()))),function(v) {
 			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_web_routing_Response.ofChunk(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(v)),null))));
 		});
 	}
-	,__class__: tink_web_routing_Router0
+	,__class__: tink_web_routing_Router2
+};
+var tink_web_routing_Router3 = function(target) {
+	this.target = target;
+};
+$hxClasses["tink.web.routing.Router3"] = tink_web_routing_Router3;
+tink_web_routing_Router3.__name__ = "tink.web.routing.Router3";
+tink_web_routing_Router3.prototype = {
+	target: null
+	,route: function(ctx) {
+		var l = ctx.parts.length - ctx.depth;
+		var _g = l > 1;
+		var _g1 = ctx.part(0);
+		if(ctx.request.header.method == "GET") {
+			if(l > 0) {
+				switch(_g1) {
+				case "coco":
+					if(_g == false) {
+						return tink_core_Promise.ofSpecific(this.coco(ctx));
+					} else {
+						var this1 = ctx.request.header.url;
+						return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 64, className : "tink.web.routing.Router3", methodName : "route"}))));
+					}
+					break;
+				case "compile":
+					if(_g == false) {
+						return tink_core_Promise.ofSpecific(this.compile(ctx));
+					} else {
+						var this1 = ctx.request.header.url;
+						return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 64, className : "tink.web.routing.Router3", methodName : "route"}))));
+					}
+					break;
+				default:
+					var this1 = ctx.request.header.url;
+					return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 64, className : "tink.web.routing.Router3", methodName : "route"}))));
+				}
+			} else {
+				return tink_core_Promise.ofSpecific(this.index(ctx));
+			}
+		} else {
+			var this1 = ctx.request.header.url;
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(404,"Not Found: [" + ctx.request.header.method + "] " + (this1.query == null ? this1.path : (this1.path == null ? "null" : this1.path) + "?" + (this1.query == null ? "null" : this1.query)),{ fileName : "src/server/app/Server.hx", lineNumber : 64, className : "tink.web.routing.Router3", methodName : "route"}))));
+		}
+	}
+	,index: function(ctx) {
+		return tink_core_Promise.next(new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(this.target.index()))),function(__data__) {
+			if(ctx.accepts("application/json")) {
+				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_web_routing_Response.textual(200,"application/json",new tink_json_Writer2().write(__data__),[]))));
+			}
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(415,"Unsupported Media Type",{ fileName : "src/flat/CocoFlat.hx", lineNumber : 16, className : "tink.web.routing.Router3", methodName : "index"}))));
+		});
+	}
+	,coco: function(ctx) {
+		return tink_core_Promise.next(this.target.coco(),function(v) {
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_web_routing_Response.ofChunk(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString(v)),"text/html"))));
+		});
+	}
+	,compile: function(ctx) {
+		return tink_core_Promise.next(this.target.compile(),function(__data__) {
+			if(ctx.accepts("application/json")) {
+				return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(tink_web_routing_Response.textual(200,"application/json",new tink_json_Writer3().write(__data__),[]))));
+			}
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Failure(new tink_core_TypedError(415,"Unsupported Media Type",{ fileName : "src/flat/CocoFlat.hx", lineNumber : 30, className : "tink.web.routing.Router3", methodName : "compile"}))));
+		});
+	}
+	,__class__: tink_web_routing_Router3
 };
 function $getIterator(o) { if( o instanceof Array ) return new haxe_iterators_ArrayIterator(o); else return o.iterator(); }
 function $bind(o,m) { if( m == null ) return null; if( m.__id__ == null ) m.__id__ = $global.$haxeUID++; var f; if( o.hx__closures__ == null ) o.hx__closures__ = {}; else f = o.hx__closures__[m.__id__]; if( f == null ) { f = m.bind(o); o.hx__closures__[m.__id__] = f; } return f; }
@@ -10917,6 +12642,7 @@ DateTools.DAY_SHORT_NAMES = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
 DateTools.DAY_NAMES = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
 DateTools.MONTH_SHORT_NAMES = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 DateTools.MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+coconut_html_View.idCounter = 0;
 haxe_Serializer.USE_CACHE = false;
 haxe_Serializer.USE_ENUM_INDEX = false;
 haxe_Serializer.BASE64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789%:";
@@ -11007,15 +12733,19 @@ tink_core_Future.NEVER = tink_core__$Future_NeverFuture.inst;
 tink_core_Lazy.NOISE = new tink_core__$Lazy_LazyConst(null);
 tink_core_Lazy.NULL = tink_core_Lazy.NOISE;
 tink_core_Noise.Noise = null;
-tink_core_ProgressValue.ZERO = new tink_core_MPair(0,haxe_ds_Option.None);
+tink_core_ProgressValue.ZERO = (function($this) {
+	var $r;
+	var this1 = new tink_core_MPair(0,haxe_ds_Option.None);
+	var this2 = this1;
+	$r = this2;
+	return $r;
+}(this));
 tink_core_Progress.INIT = tink_core_ProgressValue.ZERO;
 tink_core_Promise.NOISE = new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(null)));
 tink_core_Promise.NULL = tink_core_Promise.NOISE;
 tink_core_Promise.NEVER = tink_core_Future.map(tink_core_Future.NEVER,tink_core_Outcome.Success);
 tink_core__$Signal_Disposed.INST = new tink_core__$Signal_Disposed();
 tink_http_ChunkedParser.LINEBREAK = tink_chunk_Seekable.ofBytes(haxe_io_Bytes.ofString("\r\n"));
-tink_http_Fetch.client = new haxe_ds_EnumValueMap();
-tink_http_Fetch.sclient = new haxe_ds_EnumValueMap();
 tink_http_HeaderValue.DAYS = "Sun,Mon,Tue,Wen,Thu,Fri,Sat".split(",");
 tink_http_HeaderValue.MONTHS = "Jan,Feb,Mar,Apr,May,Jun,Jul,Aug,Sep,Oct,Nov,Dec".split(",");
 tink_http_HeaderName.REFERER = "referer";
@@ -11058,9 +12788,22 @@ tink_streams_Empty.inst = new tink_streams_Empty();
 tink_io_Source.EMPTY = tink_streams_Empty.inst;
 tink_io_Worker.EAGER = new tink_io__$Worker_EagerWorker();
 tink_io_Worker.pool = [tink_io_Worker.EAGER];
+tink_state_Observable.stack = new haxe_ds_List();
+tink_state_Observable.scheduled = [];
+tink_state_Observable.hasRAF = typeof window != 'undefined' && 'requestAnimationFrame' in window;
+tink_state_Observable.isScheduled = false;
+tink_state_Observable.counter = 0;
+tink_state_ConstObservable.NEVER = (function($this) {
+	var $r;
+	var this1 = new tink_core__$Future_SuspendableFuture(function(_) {
+		return null;
+	});
+	$r = this1;
+	return $r;
+}(this));
 tink_url_Path.root = "/";
-tink_web_proxy_RemoteEndpoint.NO_HEADERS = [];
-tink_web_proxy_RemoteEndpoint.NO_PATH = [];
 tink_web_routing_Response.BINARY = "application/octet-stream";
 server_app_Server.main();
 })(typeof window != "undefined" ? window : typeof global != "undefined" ? global : typeof self != "undefined" ? self : this);
+
+//# sourceMappingURL=static.js.map
