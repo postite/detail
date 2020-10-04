@@ -27,6 +27,7 @@ class Root implements ICrossRoot{
         Actor.defaultLayout.header = poscope.views.Header.render();
         
     }
+    
     @:get("/")
     @:produces("text/html")
     public function index():tink.template.Html{
@@ -40,10 +41,10 @@ class Root implements ICrossRoot{
     public var flat=new flat.CocoFlat();
 #end  
 
-    @:get('/test/$e')
-    public function test(e:String):Promise<String>{
-        trace( "test");
-        return Promise.lift("test");
+    @:get('/test/$oui')
+    public function test(oui:String):Int {
+       // trace( "test");
+        return 2;
     }
 
 }

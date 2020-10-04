@@ -6,9 +6,9 @@ using Std;
 class Config{
   static var num=haxe.Resource.getString("res").parseInt();
 
-static var configSwitch=['192.168.1.34','localhost'];
+//static var configSwitch=['192.168.1.34','localhost'];
 public static var localPort=8080;
-public static var localIP='192.168.1.34';//atchoum
+public static var localIP='localhost';//atchoum
 
 
    // public static var localIP='10.3.141.251'; //murmurspot

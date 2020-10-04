@@ -31,14 +31,14 @@ class Client<T> {
 
 	function setupConfig(){
 
-		// trace( js.Browser.window);
-		// var location=js.Browser.window.location;
-		// Config.url=location.origin.Log("origin");
-		// Config.PORT=Std.parseInt(location.port);
-		// Config.IP=location.hostname;
-		// Config.host=Config.url.host.Log("host");
-		// Config.domain=Config.url;
-        // trace(Config, "jsConfig");
+		 trace( js.Browser.window);
+		 var location=js.Browser.window.location;
+		 Config.url=location.origin.Log("origin");
+		 Config.PORT=Std.parseInt(location.port);
+		 Config.IP=location.hostname;
+		 Config.host=Config.url.host.Log("host");
+		 Config.domain=Config.url;
+         trace(Config, "jsConfig");
         
 	}
 
@@ -54,7 +54,7 @@ class Client<T> {
 		var t:Map<ActionCommand,Any>= haxe.Unserializer.run(untyped actions);
 		if (t==null) return;
 		for( a in t.keys()){
-			var b=Std.string(a);
+			var b=Std.string(a).Log("action en cours");
 			Type.createInstance(a,[remote])
 				.execute(t.get(a))
 				.handle(h->h.Log('client execute :$b'));

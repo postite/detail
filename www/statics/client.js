@@ -444,7 +444,7 @@ Type.enumParameters = function(e) {
 };
 var client_app_Client = function() {
 	this.setupConfig();
-	this.remote = new tink_web_proxy_Remote6(new tink_http_clients_JsClient(),tink_web_proxy_RemoteEndpoint._new(cross_Config.host));
+	this.remote = new tink_web_proxy_Remote4(new tink_http_clients_JsClient(),tink_web_proxy_RemoteEndpoint._new(cross_Config.host));
 	this.execute();
 };
 $hxClasses["client.app.Client"] = client_app_Client;
@@ -463,7 +463,7 @@ client_app_Client.prototype = {
 		var a = haxe_ds_StringMap.keysIterator(t.h);
 		while(a.hasNext()) {
 			var a1 = a.next();
-			var b = [poscope_wire_ActionCommand.toString(a1)];
+			var b = [Debug.Log(poscope_wire_ActionCommand.toString(a1),"action en cours",{ fileName : "src/client/app/Client.hx", lineNumber : 57, className : "client.app.Client", methodName : "execute"})];
 			Type.createInstance(poscope_wire_ActionCommand.toClass(a1),[this.remote]).execute(t.h[a1]).handle((function(b) {
 				return function(h) {
 					Debug.Log(h,"client execute :" + b[0],{ fileName : "src/client/app/Client.hx", lineNumber : 60, className : "client.app.Client", methodName : "execute"});
@@ -490,9 +490,10 @@ command_Command1.__interfaces__ = [poscope_wire_ICommand];
 command_Command1.prototype = {
 	execute: function(data) {
 		haxe_Log.trace("hello command",{ fileName : "src/command/Command1.hx", lineNumber : 14, className : "command.Command1", methodName : "execute"});
-		return tink_core_Promise.noise(tink_core_Promise.next(this.remote.test("david"),function(s) {
-			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(Debug.Log(s,null,{ fileName : "src/command/Command1.hx", lineNumber : 16, className : "command.Command1", methodName : "execute"}))));
-		}));
+		return tink_core_Promise.next(this.remote.test("oui"),function(s) {
+			Debug.Log(s,null,{ fileName : "src/command/Command1.hx", lineNumber : 17, className : "command.Command1", methodName : "execute"});
+			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(null)));
+		});
 	}
 	,__class__: command_Command1
 };
@@ -2449,27 +2450,62 @@ tink_Stringly.toBool = function(this1) {
 		return false;
 	}
 };
+tink_Stringly.isFloat = function(this1) {
+	return tink_Stringly.isNumber(StringTools.trim(this1),true);
+};
 tink_Stringly.parseFloat = function(this1) {
 	var _g = StringTools.trim(this1);
 	if(tink_Stringly.isNumber(_g,true)) {
 		return tink_core_Outcome.Success(parseFloat(_g));
 	} else {
-		return tink_core_Outcome.Failure(new tink_core_TypedError(422,"" + _g + " (encoded as " + this1 + ") is not a valid float",{ fileName : "tink/Stringly.hx", lineNumber : 60, className : "tink._Stringly.Stringly_Impl_", methodName : "parseFloat"}));
+		return tink_core_Outcome.Failure(new tink_core_TypedError(422,"" + _g + " (encoded as " + this1 + ") is not a valid float",{ fileName : "tink/Stringly.hx", lineNumber : 65, className : "tink._Stringly.Stringly_Impl_", methodName : "parseFloat"}));
 	}
 };
 tink_Stringly.toFloat = function(this1) {
 	return tink_core_OutcomeTools.sure(tink_Stringly.parseFloat(this1));
+};
+tink_Stringly.isInt = function(this1) {
+	return tink_Stringly.isNumber(StringTools.trim(this1),false);
 };
 tink_Stringly.parseInt = function(this1) {
 	var _g = StringTools.trim(this1);
 	if(tink_Stringly.isNumber(_g,false)) {
 		return tink_core_Outcome.Success(Std.parseInt(_g));
 	} else {
-		return tink_core_Outcome.Failure(new tink_core_TypedError(422,"" + _g + " (encoded as " + this1 + ") is not a valid integer",{ fileName : "tink/Stringly.hx", lineNumber : 71, className : "tink._Stringly.Stringly_Impl_", methodName : "parseInt"}));
+		return tink_core_Outcome.Failure(new tink_core_TypedError(422,"" + _g + " (encoded as " + this1 + ") is not a valid integer",{ fileName : "tink/Stringly.hx", lineNumber : 80, className : "tink._Stringly.Stringly_Impl_", methodName : "parseInt"}));
 	}
 };
 tink_Stringly.toInt = function(this1) {
 	return tink_core_OutcomeTools.sure(tink_Stringly.parseInt(this1));
+};
+tink_Stringly.parseDate = function(this1) {
+	var _g = tink_Stringly.parseFloat(this1);
+	switch(_g._hx_index) {
+	case 0:
+		return tink_core_Outcome.Success(new Date(_g.data));
+	case 1:
+		if(!tink_Stringly.SUPPORTED_DATE_REGEX.match(this1)) {
+			return tink_core_Outcome.Failure(new tink_core_TypedError(422,"" + this1 + " is not a valid date",{ fileName : "tink/Stringly.hx", lineNumber : 101, className : "tink._Stringly.Stringly_Impl_", methodName : "parseDate"}));
+		}
+		var date = new Date(this1);
+		var f = date.getTime();
+		if(isNaN(f)) {
+			return tink_core_Outcome.Failure(new tink_core_TypedError(422,"" + this1 + " is not a valid date",{ fileName : "tink/Stringly.hx", lineNumber : 104, className : "tink._Stringly.Stringly_Impl_", methodName : "parseDate"}));
+		} else {
+			return tink_core_Outcome.Success(date);
+		}
+		break;
+	}
+};
+tink_Stringly.toDate = function(this1) {
+	return tink_core_OutcomeTools.sure(tink_Stringly.parseDate(this1));
+};
+tink_Stringly.parse = function(this1,f) {
+	var _g = f;
+	var a1 = this1;
+	return tink_core_TypedError.catchExceptions(function() {
+		return _g(a1);
+	},null,{ fileName : "tink/Stringly.hx", lineNumber : 164, className : "tink._Stringly.Stringly_Impl_", methodName : "parse"});
 };
 tink_Stringly.ofBool = function(b) {
 	if(b) {
@@ -2486,6 +2522,14 @@ tink_Stringly.ofInt = function(i) {
 	}
 };
 tink_Stringly.ofFloat = function(f) {
+	if(f == null) {
+		return "null";
+	} else {
+		return "" + f;
+	}
+};
+tink_Stringly.ofDate = function(d) {
+	var f = d.getTime();
 	if(f == null) {
 		return "null";
 	} else {
@@ -8839,10 +8883,10 @@ tink_web_forms_FormField.getValue = function(this1) {
 	}
 };
 tink_web_forms_FormField.toFloat = function(this1) {
-	return tink_Stringly.toFloat(tink_web_forms_FormField.getValue(this1));
+	return tink_core_OutcomeTools.sure(tink_Stringly.parseFloat(tink_web_forms_FormField.getValue(this1)));
 };
 tink_web_forms_FormField.toInt = function(this1) {
-	return tink_Stringly.toInt(tink_web_forms_FormField.getValue(this1));
+	return tink_core_OutcomeTools.sure(tink_Stringly.parseInt(tink_web_forms_FormField.getValue(this1)));
 };
 tink_web_forms_FormField.toString = function(this1) {
 	return tink_web_forms_FormField.getValue(this1);
@@ -9032,19 +9076,19 @@ tink_web_proxy_RemoteBase.__name__ = "tink.web.proxy.RemoteBase";
 tink_web_proxy_RemoteBase.prototype = {
 	__class__: tink_web_proxy_RemoteBase
 };
-var tink_web_proxy_Remote6 = function(client,endpoint) {
+var tink_web_proxy_Remote4 = function(client,endpoint) {
 	tink_web_proxy_RemoteBase.call(this,client,endpoint);
 };
-$hxClasses["tink.web.proxy.Remote6"] = tink_web_proxy_Remote6;
-tink_web_proxy_Remote6.__name__ = "tink.web.proxy.Remote6";
-tink_web_proxy_Remote6.__super__ = tink_web_proxy_RemoteBase;
-tink_web_proxy_Remote6.prototype = $extend(tink_web_proxy_RemoteBase.prototype,{
-	test: function(e) {
-		return tink_web_proxy_RemoteEndpoint.request(tink_web_proxy_RemoteEndpoint.sub(this.endpoint,{ path : ["test",tink_url_Portion.ofString(e)], query : [], headers : [new tink_http_HeaderField("content-length",tink_http_HeaderValue.ofInt(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString("")).getLength()))].concat([])}),this.client,"GET",new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString("")))),function(header,body) {
+$hxClasses["tink.web.proxy.Remote4"] = tink_web_proxy_Remote4;
+tink_web_proxy_Remote4.__name__ = "tink.web.proxy.Remote4";
+tink_web_proxy_Remote4.__super__ = tink_web_proxy_RemoteBase;
+tink_web_proxy_Remote4.prototype = $extend(tink_web_proxy_RemoteBase.prototype,{
+	test: function(oui) {
+		return tink_web_proxy_RemoteEndpoint.request(tink_web_proxy_RemoteEndpoint.sub(this.endpoint,{ path : ["test",tink_url_Portion.ofString(oui)], query : [], headers : [new tink_http_HeaderField("content-length",tink_http_HeaderValue.ofInt(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString("")).getLength()))].concat([])}),this.client,"GET",new tink_streams_Single(new tink_core__$Lazy_LazyConst(tink_chunk_ByteChunk.of(haxe_io_Bytes.ofString("")))),function(header,body) {
 			return new tink_core__$Future_SyncFuture(new tink_core__$Lazy_LazyConst(tink_core_Outcome.Success(new tink_http_IncomingResponse(header,body))));
 		});
 	}
-	,__class__: tink_web_proxy_Remote6
+	,__class__: tink_web_proxy_Remote4
 });
 var tink_web_routing_Path = {};
 tink_web_routing_Path.toString = function(this1) {
@@ -9395,6 +9439,7 @@ httpstatus_HttpStatusCode.NotExtended = 510;
 httpstatus_HttpStatusCode.NetworkAuthenticationRequired = 511;
 tink__$Chunk_EmptyChunk.EMPTY = new haxe_io_Bytes(new ArrayBuffer(0));
 tink_Chunk.EMPTY = new tink__$Chunk_EmptyChunk();
+tink_Stringly.SUPPORTED_DATE_REGEX = new EReg("^(\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2})(\\.\\d{3})?(Z|[\\+-]\\d{2}:\\d{2})$","");
 tink_Url.SCHEME = 2;
 tink_Url.PAYLOAD = 3;
 tink_Url.AUTH = 6;
